@@ -12,7 +12,7 @@ Planning stage. No code yet. Final submission is 22 November.
 
 - [docs/Revised_Ideation_Plan.md](docs/Revised_Ideation_Plan.md): the formulation after the review remarks.
 - [docs/Work_Division_Plan.md](docs/Work_Division_Plan.md): who builds what, shared names and interfaces, schedule, GitHub workflow, submission checklist.
-- [report/main.tex](report/main.tex): the LaTeX report (uses `arxiv.sty`).
+- [report/main.tex](report/main.tex): the LaTeX report (uses `arxiv.sty`). Compiled copy: [report/Revised_Ideation_Report.pdf](report/Revised_Ideation_Report.pdf).
 
 ## Planned layout
 

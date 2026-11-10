@@ -1,0 +1,259 @@
+\documentclass{article}
+
+\usepackage{arxiv}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\soc}{\mathrm{SoC}}
+\newcommand{\cmax}{C_{\max}}
+\newcommand{\dt}{\Delta t}
+
+\title{Safe Neighbourhood EV Charging: Local Planning, a Correlated Mediator, and Shapley Penalties}
+
+\author{
+  Busa Bhava Ram (24110083) \And Muppala Harshith (24110213) \AND
+  Sura Sravan Kumar (24110362) \And Moram Raghavendra Sri Koushik (24110210)
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. If they all charge when they reach home, the total load can go above the transformer limit. We divide the night into 15-minute slots. In each slot an EV either charges at its rated power or waits. Each EV plans for itself and sends two numbers to a mediator: its value for waiting and its value for charging. The mediator picks a joint recommendation that keeps the load within the limit. An EV that is told to wait and charges anyway pays a penalty for the overload it causes, and when several do this the penalty is divided by the Shapley value. In the first version of this proposal the penalty was outside the game, and the mediator's constraints then had no solution whenever the limit was binding. This version puts the penalty inside the payoff, which removes that problem.
+\end{abstract}
+
+\keywords{multi-agent systems \and EV charging \and Markov decision process \and correlated equilibrium \and Shapley value}
+
+\section{Introduction}
+
+An EV that reaches home at 6 PM and leaves at 7 AM has thirteen hours to get a few hours of charge. The owner does not care when the charging happens, as long as the car is ready and the bill is low. The transformer does care. Three 7~kW chargers on a 15~kW transformer cannot all run together.
+
+The agents are the EVs. Each one knows its own battery level, target, charger rating and departure time, and it decides one thing per slot: charge or wait. The transformer is part of the environment. A central mediator sees only what the EVs report and the transformer limit $\cmax$.
+
+We ask two questions. First, can a mediator that sends private recommendations keep the load under $\cmax$ and still get the cars charged, compared with simpler policies? Second, when some EVs ignore the recommendation, does a Shapley split of the penalty treat them more sensibly than an equal split?
+
+Uncoordinated home charging overloading local transformers is a known problem \cite{shojaei2023}. The tools we use are from the course: a finite-horizon MDP for each EV, correlated equilibrium \cite{aumann1974} for the mediator, and the Shapley value \cite{shapley1953} for the penalty.
+
+\section{Preliminaries}
+
+\subsection{Inputs and local model}
+
+Time is divided into slots of $\dt = 0.25$ hours. The night has $T = 52$ slots, from 18:00 to 07:00. Table~\ref{tab:inputs} lists what EV $i$ knows at slot $t$.
+
+\begin{table}[h]
+\centering
+\caption{Inputs of EV $i$ at slot $t$.}
+\label{tab:inputs}
+\begin{tabular}{llll}
+\toprule
+Quantity & Symbol & Unit & Meaning \\
+\midrule
+State of charge & $\soc_{i,t}$ & $[0,1]$ & battery level now \\
+Battery capacity & $E_i$ & kWh & usable capacity \\
+Charger rating & $P_i$ & kW & power drawn when charging \\
+Slots left & $K_{i,t}$ & integer & slots before departure \\
+Target & $\soc^{\mathrm{tgt}}_i$ & $[0,1]$ & level needed at departure \\
+Efficiency & $\eta_i$ & -- & fraction of energy stored \\
+Price & $c_t$ & Rs/kWh & tariff in slot $t$, known for the night \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The state is $s_{i,t} = (\soc_{i,t}, K_{i,t})$ and the action is $a_{i,t} \in \{0,1\}$, where 1 means charging at $P_i$. One slot changes the state as
+\begin{align}
+\soc_{i,t+1} &= \min\Bigl\{1,\; \soc_{i,t} + \frac{\eta_i\, a_{i,t}\, P_i\, \dt}{E_i}\Bigr\}, \\
+K_{i,t+1} &= K_{i,t} - 1.
+\end{align}
+The transitions have no randomness, so the local problem is a deterministic dynamic program. We keep the MDP notation because the reward and value definitions are the same.
+
+\subsection{Reward and Q-values}
+
+In a normal slot the reward is the electricity cost,
+\begin{equation}
+r_i(s_{i,t}, a_{i,t}) = -\,a_{i,t}\, P_i\, \dt\, c_t .
+\end{equation}
+When the EV leaves ($K = 0$) it pays for the energy it is still missing:
+\begin{equation}
+r_i^{\mathrm{end}}(s) = -M \cdot \max\bigl\{0,\; (\soc^{\mathrm{tgt}}_i - \soc)\, E_i\bigr\}.
+\label{eq:terminal}
+\end{equation}
+The first proposal mentioned $M$ but did not use it in any equation. Without \eqref{eq:terminal} the best plan is never to charge, since charging only costs money. $M$ has to be larger than $\max_t c_t / \eta_i$ so that buying a unit of energy is always cheaper than missing it.
+
+Backward induction from the departure slot gives
+\begin{equation}
+Q_i(s_{i,t}, a) = r_i(s_{i,t}, a) + \max_{a'} Q_i(s_{i,t+1}, a'),
+\end{equation}
+with no discounting because the horizon is one night. The EV reports the pair $\bigl(Q_i(s_{i,t},0),\, Q_i(s_{i,t},1)\bigr)$. We write
+\begin{equation}
+g_{i,t} = Q_i(s_{i,t},1) - Q_i(s_{i,t},0)
+\end{equation}
+for the gain from charging in this slot instead of waiting.
+
+We also track how urgent an EV is. The number of charging slots it still needs is
+\begin{equation}
+K^{\mathrm{req}}_{i,t} = \left\lceil \frac{\max\{0, (\soc^{\mathrm{tgt}}_i - \soc_{i,t})E_i\}}{\eta_i P_i \dt} \right\rceil .
+\end{equation}
+If $K_{i,t} < K^{\mathrm{req}}_{i,t}$ the target cannot be met even by charging in every remaining slot.
+
+\section{Problem Formulation}
+
+\subsection{Why the first formulation failed}
+
+In the first proposal the mediator's incentive constraint for EV $i$ compared $Q_i(a_i)$ with $Q_i(a_i')$, and neither depends on the other EVs. Take two EVs with 7~kW chargers on a 10~kW transformer, both with $g > 0$. The constraint for an EV told to wait reads $\Pr(\text{told to wait}) \cdot (-g) \ge 0$, so that probability must be zero. Both must be told to charge, which is 14~kW and is not allowed. The linear program has no feasible point. This happens whenever more EVs want to charge than the transformer can take, which is the only case where a mediator is needed.
+
+\subsection{Payoff with the overload penalty}
+
+Let $a^*_t$ be the recommended profile and $a_t$ the executed one. The load and overload are
+\begin{equation}
+L(a) = \sum_{i=1}^{N} a_i P_i, \qquad \Delta C(a) = \max\{0,\; L(a) - \cmax\}.
+\end{equation}
+An overload of $\Delta C$ costs $\lambda\,\Delta C^2$ in total, with $\lambda > 0$ in Rs/kW$^2$. Only defectors pay, where a defector is an EV with $a^*_{i,t} = 0$ and $a_{i,t} = 1$. If EV $i$ is the only defector from a safe recommendation, its penalty is
+\begin{equation}
+\rho_i(a^*_{-i}) = \lambda \cdot \max\bigl\{0,\; L(a^*_{-i}) + P_i - \cmax\bigr\}^2 ,
+\label{eq:single}
+\end{equation}
+where $L(a^*_{-i})$ is the load of the others. The payoff of EV $i$ in a slot is its Q-value for the action it takes minus its penalty. Through \eqref{eq:single} this payoff depends on what the others are doing.
+
+\subsection{Mediator's linear program}
+
+The variables are $\pi(a) \ge 0$ for each of the $2^N$ joint profiles, and a slack $\varepsilon \ge 0$.
+\begin{align}
+\max_{\pi}\quad & \sum_{a} \pi(a) \sum_{i=1}^{N} Q_i(s_{i,t}, a_i) \label{eq:obj}\\
+\text{s.t.}\quad & \sum_{a} \pi(a) = 1, \\
+& \pi(a) = 0 \quad \text{whenever } L(a) > \cmax, \label{eq:safe}\\
+& g_{i,t} \sum_{a:\,a_i = 1} \pi(a) \;\ge\; -\varepsilon \quad \forall i, \label{eq:on}\\
+& \sum_{a:\,a_i = 0} \pi(a)\,\bigl[\rho_i(a_{-i}) - g_{i,t}\bigr] \;\ge\; -\varepsilon \quad \forall i. \label{eq:off}
+\end{align}
+Constraint \eqref{eq:on} says an EV told to charge should not prefer to wait. Constraint \eqref{eq:off} says an EV told to wait should not prefer to charge, once it accounts for the penalty it would pay given what the others are likely doing. With $\varepsilon = 0$ these are the correlated-equilibrium conditions on safe profiles.
+
+\section{Methodology}
+
+\subsection{One control slot}
+
+\begin{algorithm}[h]
+\caption{One slot of the rolling procedure}
+\label{alg:slot}
+\begin{algorithmic}[1]
+\Require states $s_{i,t}$, ratings $P_i$, limit $\cmax$, penalty weight $\lambda$
+\For{each connected EV $i$}
+  \State compute $Q_i(s_{i,t},0)$ and $Q_i(s_{i,t},1)$ by backward induction and report them
+\EndFor
+\State list all $2^N$ profiles and remove those with $L(a) > \cmax$
+\State solve the LP with objective $\min \varepsilon$; call the optimum $\varepsilon^\star$
+\State fix $\varepsilon = \varepsilon^\star$ and solve again with objective \eqref{eq:obj}
+\State sample $a^*_t$ from $\pi$ and send $a^*_{i,t}$ to EV $i$ only
+\State each EV acts; observe $a_t$
+\State compute $\Delta C(a_t)$ and split the penalty among defectors (Section~\ref{sec:shapley})
+\State update every $\soc_{i,t+1}$ and $K_{i,t+1}$
+\end{algorithmic}
+\end{algorithm}
+
+The Q-values are recomputed every slot from the current state, so a car that was told to wait becomes more urgent in the next slot and its gain $g$ grows.
+
+\subsection{Solving the LP}
+
+We solve the LP twice. The first solve minimises $\varepsilon$. If the result is zero, an exact equilibrium on safe profiles exists. If it is positive, $\lambda$ is too small for some EV and $\varepsilon^\star$ measures how much that EV would gain by disobeying. The second solve keeps $\varepsilon$ at $\varepsilon^\star$ and maximises the total reported value. With the slack the LP always has a solution, since recommending that everyone waits is safe and satisfies the constraints for a large enough $\varepsilon$.
+
+For $N = 12$ the LP has 4096 variables and 24 incentive constraints, which a standard solver handles. The count doubles with each extra EV, so we stop at 12.
+
+\subsection{When an exact equilibrium exists}
+
+Let $W$ be the set of EVs with $g_{i,t} > 0$. Choose a subset $S \subseteq W$ that is safe and to which no other member of $W$ can be added without exceeding $\cmax$. Recommend charging to $S$ and waiting to everyone else. EVs in $S$ want to charge and are told to. EVs outside $W$ want to wait and are told to. An EV $j \in W \setminus S$ would cause an overload $\delta_j > 0$ by charging, and it obeys when $\lambda \delta_j^2 \ge g_{j,t}$. So $\varepsilon^\star = 0$ whenever
+\begin{equation}
+\lambda \;\ge\; \max_{j \in W \setminus S} \frac{g_{j,t}}{\delta_j^{2}} .
+\end{equation}
+In the two-EV example, $\delta = 4$~kW, so the condition is $16\lambda \ge g$, and the mediator can recommend (charge, wait) and (wait, charge) with probability $1/2$ each.
+
+\subsection{Splitting the penalty among several defectors}
+\label{sec:shapley}
+
+Let $D_t$ be the set of defectors in slot $t$. For a subset $S \subseteq D_t$, the overload that would have happened if only the members of $S$ had defected is
+\begin{equation}
+v_t(S) = \lambda \cdot \max\Bigl\{0,\; L(a^*_t) + \sum_{j \in S} P_j - \cmax\Bigr\}^2 .
+\end{equation}
+Defector $i$ pays its Shapley value
+\begin{equation}
+\phi_{i,t} = \sum_{S \subseteq D_t \setminus \{i\}} \frac{|S|!\,(|D_t| - |S| - 1)!}{|D_t|!}\,\bigl[v_t(S \cup \{i\}) - v_t(S)\bigr],
+\end{equation}
+and every other EV pays zero. The shares add up to $v_t(D_t)$, the actual penalty. With one defector this reduces to \eqref{eq:single}, so the simulator and the mediator use the same rule. We compute the sum exactly because $|D_t| \le 12$.
+
+\subsection{Baselines and defection model}
+
+We compare the mediator with four policies: (i) charge on arrival until the target is met, (ii) charge only in the cheapest slots that still meet the target, (iii) rank EVs by $K_{i,t} / K^{\mathrm{req}}_{i,t}$ and fill the transformer in that order, and (iv) each EV follows its own Q-values with no mediator. For the penalty we compare the Shapley split with an equal split and a split in proportion to charger rating.
+
+In the simulator, an EV that is told to wait while $g_{i,t} > 0$ charges anyway with probability $p_{\mathrm{def}}$. Setting $p_{\mathrm{def}} = 0$ gives full obedience.
+
+\section{Results}
+
+This section will be filled from the code in the repository. Every figure and table will be produced by a script from a fixed seed, and the README will map each one to its script. The planned items are in Table~\ref{tab:planned}.
+
+\begin{table}[h]
+\centering
+\caption{Planned results. Scenarios use $N \in \{4, 8, 12\}$ and ratings of 3.3, 7.0 and 11.0~kW.}
+\label{tab:planned}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Item & What it shows \\
+\midrule
+Table: policies & Overloaded slots, total overload, electricity cost and share of EVs reaching target, for the five policies \\
+Figure: load profile & Total load over the night against $\cmax$, charge-on-arrival and mediator \\
+Figure: tighter limit & Overload of each policy as $\cmax$ is reduced \\
+Figure: $\varepsilon^\star$ against $\lambda$ & The $\lambda$ at which an exact equilibrium appears \\
+Figure: runtime & Mediator solve time against $N$ \\
+Table: penalty rules & Shapley, equal and proportional split on the same defection events \\
+Figure: defection rate & Overload and penalties as $p_{\mathrm{def}}$ grows \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Limitations}
+
+EVs are assumed to report their Q-values truthfully. The Q-values come from a plan in which the EV can charge whenever it likes, so they ignore future recommendations to wait and future penalties. The penalty depends on the recommendation as well as the action, which is a point we are confirming with the course instructor. If an EV's overload $\delta_j$ is very small, the $\lambda$ needed for obedience is very large. The model leaves out variable charging power, voltage and three-phase effects, battery ageing and real tariff rules.
+
+\section{Contributions}
+
+\begin{table}[h]
+\centering
+\caption{Task of each member and whether it was completed.}
+\label{tab:contrib}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+Member & Assigned task & Fulfilled \\
+\midrule
+Busa Bhava Ram (24110083) & Local EV model, feasibility check, scenario generator, tests & to be filled \\
+Muppala Harshith (24110213) & Mediator LP, recommendation sampler, $\lambda$ and runtime experiments & to be filled \\
+Moram Raghavendra Sri Koushik (24110210) & Overload and penalty module, Shapley split, comparison of penalty rules & to be filled \\
+Sura Sravan Kumar (24110362) & Simulator, baseline policies, experiment scripts, figures, README & to be filled \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Code: \url{https://github.com/REPLACE-OWNER/safe-ev-charging-mediator}
+
+\begin{thebibliography}{9}
+
+\bibitem{aumann1974}
+R.~J. Aumann.
+\newblock Subjectivity and correlation in randomized strategies.
+\newblock \emph{Journal of Mathematical Economics}, 1(1):67--96, 1974.
+
+\bibitem{shapley1953}
+L.~S. Shapley.
+\newblock A value for $n$-person games.
+\newblock In H.~W. Kuhn and A.~W. Tucker, editors, \emph{Contributions to the Theory of Games II}, pages 307--317. Princeton University Press, 1953.
+
+\bibitem{shojaei2023}
+A.~Shojaeighadikolaei and M.~Hashemi.
+\newblock An efficient distributed multi-agent reinforcement learning for EV charging network control.
+\newblock \emph{arXiv preprint arXiv:2308.12921}, 2023.
+
+\end{thebibliography}
+
+\end{document}

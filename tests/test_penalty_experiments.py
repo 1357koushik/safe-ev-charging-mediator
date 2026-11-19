@@ -19,6 +19,33 @@ def test_recommendation_is_safe_and_maximal():
         assert np.all(load + ev.p_rated_kw[off] > ev.c_max_kw)
 
 
+def test_spare_mode_is_safe_and_sometimes_leaves_room():
+    rng = np.random.default_rng(3)
+    room = 0
+    for _ in range(500):
+        ev = sample_event(rng, 8, 0.3, rec_mode="spare")
+        load = ev.rec @ ev.p_rated_kw
+        assert load <= ev.c_max_kw + 1e-9
+        off = ev.rec == 0
+        room += bool(np.any(load + ev.p_rated_kw[off] <= ev.c_max_kw))
+    assert room > 100        # an EV told to wait would often have fitted
+
+
+def test_spare_mode_produces_defectors_harmless_alone():
+    rng = np.random.default_rng(4)
+    harmless = 0
+    for _ in range(500):
+        res = evaluate_event(sample_event(rng, 8, 0.5, rec_mode="spare"), 5.0)
+        harmless += int(np.sum(res["lone_rs"] == 0))
+    assert harmless > 50
+
+
+def test_unknown_mode_is_refused():
+    import pytest
+    with pytest.raises(ValueError):
+        sample_event(np.random.default_rng(0), 4, 0.3, rec_mode="half")
+
+
 def test_every_defector_overloads_alone():
     rng = np.random.default_rng(1)
     for _ in range(300):
@@ -42,3 +69,15 @@ def test_experiments_are_reproducible(tmp_path):
     d1 = run_defection_rate.run(events=20, out_dir=tmp_path / "c")
     d2 = run_defection_rate.run(events=20, out_dir=tmp_path / "d")
     pd.testing.assert_frame_equal(d1, d2)
+
+
+def test_table_percentages_do_not_depend_on_lambda(tmp_path):
+    """The report says the percentages hold for any lambda > 0."""
+    a = run_penalty_rules.summarise(*run_penalty_rules.run(
+        events_per_n=60, lam=1.0, out_dir=tmp_path / "a"))
+    b = run_penalty_rules.summarise(*run_penalty_rules.run(
+        events_per_n=60, lam=37.0, out_dir=tmp_path / "b"))
+    cols = [c for c in a.columns if c.startswith("pct_") or "gap" in c]
+    assert np.allclose(a[cols].to_numpy(float), b[cols].to_numpy(float),
+                       atol=1e-9, equal_nan=True)
+    assert np.allclose(b["rs_per_kw_7"], 37.0 * a["rs_per_kw_7"])

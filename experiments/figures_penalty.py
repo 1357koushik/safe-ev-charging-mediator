@@ -52,23 +52,36 @@ def _save(fig, name, out_dir):
     plt.close(fig)
 
 
+MODE_TITLE = {"full": "Full recommendation", "spare": "Recommendation with spare capacity"}
+
+
 def plot_rs_per_kw(summary: pd.DataFrame, out_dir=FIGURES):
-    """Average penalty per kW of charger rating, by rating and rule."""
-    cols = [c for c in summary.columns if c.startswith("rs_per_kw_")]
-    ratings = [c.removeprefix("rs_per_kw_") for c in cols]
-    fig, ax = plt.subplots(figsize=(5.0, 2.6))
+    """Average penalty per kW of charger rating, by rating and rule, with one
+    panel per recommendation mode. Both panels share the y axis."""
+    modes = [m for m in MODE_TITLE if m in set(summary.rec_mode)]
+    cols = sorted((c for c in summary.columns if c.startswith("rs_per_kw_")),
+                  key=lambda c: float(c.removeprefix("rs_per_kw_")))
+    fig, axes = plt.subplots(1, len(modes), figsize=(6.4, 2.6), sharey=True,
+                             squeeze=False)
     width = 0.26
-    for k, rule in enumerate(["shapley", "proportional", "equal"]):
-        row = summary.set_index("rule").loc[rule]
-        xs = [i + (k - 1) * (width + 0.02) for i in range(len(cols))]
-        ax.bar(xs, [row[c] for c in cols], width=width, color=RULE_COLOR[rule],
-               label=RULE_LABEL[rule], edgecolor="white", linewidth=1.0)
-    ax.set_xticks(range(len(cols)), [f"{r} kW" for r in ratings])
-    ax.set_xlabel("Charger rating of the defector", fontsize=9)
-    ax.set_ylabel("Penalty per kW (Rs)", fontsize=9)
-    _style(ax)
-    ax.legend(frameon=False, fontsize=8, ncol=3, loc="upper left",
-              bbox_to_anchor=(0, 1.16), labelcolor=INK)
+    for ax, mode in zip(axes[0], modes):
+        s = summary[summary.rec_mode == mode].set_index("rule")
+        for k, rule in enumerate(["shapley", "proportional", "equal"]):
+            xs = [i + (k - 1) * (width + 0.02) for i in range(len(cols))]
+            # A rating class with no defectors in this mode is left empty.
+            ys = [s.loc[rule, c] if pd.notna(s.loc[rule, c]) else 0.0 for c in cols]
+            ax.bar(xs, ys, width=width, color=RULE_COLOR[rule],
+                   label=RULE_LABEL[rule], edgecolor="white", linewidth=1.0)
+        ax.set_xticks(range(len(cols)),
+                      [f"{c.removeprefix('rs_per_kw_')} kW" for c in cols])
+        ax.set_title(MODE_TITLE[mode], fontsize=9, color=INK)
+        ax.set_xlabel("Charger rating of the defector", fontsize=9)
+        _style(ax)
+    axes[0][0].set_ylabel("Penalty per kW (Rs)", fontsize=9)
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    fig.tight_layout(w_pad=0.8, rect=(0, 0, 1, 0.88))
+    fig.legend(handles, labels, frameon=False, fontsize=8, ncol=3,
+               loc="upper center", bbox_to_anchor=(0.5, 1.0), labelcolor=INK)
     _save(fig, "penalty_rs_per_kw", out_dir)
 
 
@@ -100,26 +113,33 @@ def plot_defection_rate(df: pd.DataFrame, out_dir=FIGURES):
 def write_rules_table(summary: pd.DataFrame, out_dir=FIGURES):
     """LaTeX table body for the report, so no number is typed by hand."""
     order = ["shapley", "proportional", "equal"]
-    s = summary.set_index("rule").loc[order]
+    mode_label = {"full": "Full", "spare": "Spare capacity"}
+
+    def cell(v):
+        return "--" if pd.isna(v) else f"{v:.1f}"
+
     lines = [
-        r"\begin{tabular}{lrrrrrr}",
+        r"\begin{tabular}{llrrrrrr}",
         r"\toprule",
-        r" & Gap to & Events with a & Events with a & \multicolumn{3}{c}{Rs per kW} \\",
-        r"\cmidrule(l){5-7}",
-        r"Rule & Shapley (\%) & defector below $\rho_i$ (\%) & group subsidised (\%)"
-        r" & 3.3 kW & 7 kW & 11 kW \\",
-        r"\midrule",
+        r" & & Gap to & Events with a & Events with a & \multicolumn{3}{c}{Rs per kW} \\",
+        r"\cmidrule(l){6-8}",
+        r"Recommendation & Rule & Shapley (\%) & defector below $c(\{i\})$ (\%)"
+        r" & group subsidised (\%) & 3.3 kW & 7 kW & 11 kW \\",
     ]
-    for rule, r in s.iterrows():
-        lines.append(
-            f"{RULE_LABEL[rule]} & {r.mean_gap_vs_shapley_pct:.1f} & "
-            f"{r.pct_events_someone_below_lone:.1f} & {r.pct_events_group_subsidised:.1f} & "
-            f"{r['rs_per_kw_3.3']:.1f} & {r['rs_per_kw_7']:.1f} & {r['rs_per_kw_11']:.1f} \\\\")
+    for mode in [m for m in MODE_TITLE if m in set(summary.rec_mode)]:
+        s = summary[summary.rec_mode == mode].set_index("rule").loc[order]
+        lines.append(r"\midrule")
+        for k, (rule, r) in enumerate(s.iterrows()):
+            first = f"{mode_label[mode]} ($n={int(r.events)}$)" if k == 0 else ""
+            lines.append(
+                f"{first} & {RULE_LABEL[rule]} & {cell(r.mean_gap_vs_shapley_pct)} & "
+                f"{cell(r.pct_events_someone_below_lone)} & "
+                f"{cell(r.pct_events_group_subsidised)} & "
+                f"{cell(r.get('rs_per_kw_3.3'))} & {cell(r.get('rs_per_kw_7'))} & "
+                f"{cell(r.get('rs_per_kw_11'))} " + r"\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "penalty_rules_table.tex").write_text("\n".join(lines) + "\n")
-    n_events = int(s.events.iloc[0])
-    (out_dir / "penalty_rules_events.tex").write_text(f"{n_events}%\n")
 
 
 def make_all(results=RESULTS, out_dir=FIGURES):

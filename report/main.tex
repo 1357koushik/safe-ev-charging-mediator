@@ -174,21 +174,29 @@ In the two-EV example, $\delta = 4$~kW, so the condition is $16\lambda \ge g$, a
 \subsection{Splitting the penalty among several defectors}
 \label{sec:shapley}
 
-Let $D_t$ be the set of defectors in slot $t$ and write $f(L) = \lambda \max\{0, L - \cmax\}^2$ for the penalty at load $L$. For a subset $S \subseteq D_t$ we charge the extra penalty that $S$ would cause on its own, on top of the recommended profile:
+Let $D_t$ be the set of defectors in slot $t$ and write $f(L) = \lambda \max\{0, L - \cmax\}^2$ for the penalty at load $L$. Let
 \begin{equation}
-c_t(S) = f\Bigl(L(a^*_t) + \sum_{j \in S} P_j\Bigr) - f\bigl(L(a^*_t)\bigr).
+B_t = \sum_{j \notin D_t} a_{j,t} P_j
+\end{equation}
+be the load the other EVs actually drew. For a subset $S \subseteq D_t$ we charge the extra penalty that $S$ would add on top of $B_t$:
+\begin{equation}
+c_t(S) = f\Bigl(B_t + \sum_{j \in S} P_j\Bigr) - f(B_t).
 \label{eq:coalition}
 \end{equation}
-The mediator only recommends safe profiles, so the second term is zero and $c_t(D_t)$ is the whole penalty of the slot. We keep the term because a baseline such as charge-on-arrival can recommend an overloaded profile. That overload is the policy's fault, so it is not passed on to whoever disobeyed. Defector $i$ pays its Shapley value
+We use what the other EVs did, not what they were told, because an EV told to charge can wait instead. If EV A is told to charge and waits, and EV B is told to wait and charges, the load may stay under $\cmax$. Measuring against the recommended load would then charge B for an overload that never happened. With $B_t$ there are two consequences. First, if the transformer was not overloaded, nobody pays. Second, the shares add up to the real penalty $f(L(a_t))$ whenever $B_t \le \cmax$. This always holds with the mediator, since $B_t$ is at most the load of a safe recommendation. $B_t$ can be above $\cmax$ only when the recommendation itself is unsafe, which a baseline such as charge-on-arrival can produce. That part of the overload is the policy's fault, so it is not passed on to whoever disobeyed.
+
+Defector $i$ pays its Shapley value
 \begin{equation}
 \phi_{i,t} = \sum_{S \subseteq D_t \setminus \{i\}} \frac{|S|!\,(|D_t| - |S| - 1)!}{|D_t|!}\,\bigl[c_t(S \cup \{i\}) - c_t(S)\bigr],
 \label{eq:shapley}
 \end{equation}
-and every other EV pays zero, including an EV that was told to charge and waited. The shares add up to $c_t(D_t)$. With one defector, $\phi_{i,t}$ is exactly $\rho_i$ from \eqref{eq:single}, so the simulator charges the same amount the mediator assumed.
+and every other EV pays zero, including an EV that was told to charge and waited. The shares add up to $c_t(D_t)$. If the other EVs follow their recommendations exactly, $B_t = L(a^*_{-i,t})$, and a lone defector pays $c_t(\{i\}) = \rho_i$ from \eqref{eq:single}. So the simulator charges the same amount the mediator assumed.
 
-\paragraph{Why the Shapley share protects the mediator.} The obedience constraint \eqref{eq:off} only looks at one EV deviating alone. If several EVs deviate together and the penalty is shared, each might pay less than $\rho_i$, and the constraint would no longer hold. This does not happen with \eqref{eq:shapley}. The cost $c_t(S)$ depends only on the total power of $S$, and $f$ is convex, so the marginal cost of adding EV $i$ to a group grows as the group grows. The smallest marginal cost is the one where $i$ is first, which is $c_t(\{i\}) = \rho_i$. A weighted average of numbers that are all at least $\rho_i$ is at least $\rho_i$, so $\phi_{i,t} \ge \rho_i$. The same argument applied to a group $S$ gives $\sum_{i \in S} \phi_{i,t} \ge c_t(S)$: no group of defectors pays less than the penalty it would have caused by itself. If $\lambda$ is large enough for a lone deviation to be unprofitable, a joint deviation is unprofitable too.
+\paragraph{Why the Shapley share protects the mediator.} The obedience constraint \eqref{eq:off} only considers one EV deviating while the rest obey. If several EVs deviate together and share the penalty, each might pay less than it would alone, and the reason to obey would weaken. This does not happen with \eqref{eq:shapley}. The cost $c_t(S)$ depends only on the total power of $S$, and $f$ is convex, so the marginal cost of adding EV $i$ to a group grows as the group grows. The smallest marginal cost is the one where $i$ comes first, which is $c_t(\{i\})$. The Shapley value is a weighted average of marginal costs that are all at least $c_t(\{i\})$, so $\phi_{i,t} \ge c_t(\{i\})$. The same argument applied to a group $S$ gives $\sum_{i \in S} \phi_{i,t} \ge c_t(S)$: no group of defectors pays less than the penalty it would have caused by itself.
 
-\paragraph{Computing it.} The defectors are numbered $0,\dots,d-1$ and each subset is stored as a $d$-bit mask, the same convention the mediator uses for joint profiles. We first compute $c_t$ for all $2^d$ masks from their total power, then evaluate \eqref{eq:shapley} for each defector by summing over the masks that do not contain it. This takes $d \cdot 2^d$ steps, about $5 \times 10^4$ for $d = 12$, and is well under a millisecond. The code checks itself against a slow version that averages marginal costs over all $d!$ orderings.
+To connect this to \eqref{eq:off}, suppose the EVs told to charge do charge. Then $c_t(\{i\}) = \rho_i$, and $\phi_{i,t} \ge \rho_i$ holds whichever other EVs also defect. Constraint \eqref{eq:off} is an average over the recommendations the others receive, so taking the same average gives an expected payment at least as large as the one in \eqref{eq:off}. If $\lambda$ makes a lone deviation unprofitable in that sense, deviating alongside others is unprofitable too. The bound does not cover EVs told to charge that wait: they lower $B_t$, and a defector can then pay less than $\rho_i$. In that case the defector is using capacity that someone else left free.
+
+\paragraph{Computing it.} The defectors are numbered $0,\dots,d-1$ and each subset is stored as a $d$-bit mask, the same convention the mediator uses for joint profiles. We first compute $c_t$ for all $2^d$ masks from their total power, then evaluate \eqref{eq:shapley} for each defector by summing over the masks that do not contain it. This takes $d \cdot 2^d$ steps, about $5 \times 10^4$ for $d = 12$, which took about 0.8~ms in our implementation. The tests compare it with a slow version that averages marginal costs over all $d!$ orderings.
 
 For comparison we also split $c_t(D_t)$ equally among the defectors, and in proportion to $P_i$. All three rules divide the same amount, so only the split differs.
 
@@ -224,31 +232,32 @@ Figure: defection rate & Overload and penalties as $p_{\mathrm{def}}$ grows \\
 \subsection{How the penalty is split}
 \label{sec:res-penalty}
 
-To compare split rules we do not need the whole night, only the slots where someone disobeys. We generated such slots directly (\texttt{experiments/run\_penalty\_rules.py}). For each $N \in \{4, 8, 12\}$ we drew 2000 slots with ratings from $\{3.3, 7, 11\}$~kW and $\cmax$ between 30\% and 70\% of the total rating. The recommendation is a maximal safe set: the EVs are taken in random order and each one is switched on if it still fits. Each EV told to wait then defects with probability 0.3, and $\lambda = 5$. Every EV here wants to charge, so every defector overloads the transformer even alone. The comparison below uses the \IfFileExists{figures/penalty_rules_events.tex}{\input{figures/penalty_rules_events.tex}}{[n]} slots with at least two defectors, since with one defector all three rules agree.
+To compare split rules we do not need the whole night, only the slots where someone disobeys. We generated such slots directly (\texttt{experiments/run\_penalty\_rules.py}). Ratings are drawn from $\{3.3, 7, 11\}$~kW and $\cmax$ is between 30\% and 70\% of the total rating. We used two kinds of recommendation. In a \emph{full} recommendation the EVs are taken in random order and each one is switched on if it still fits. Nobody told to wait fits in what is left, so every defector overloads the transformer even alone. In a recommendation with \emph{spare capacity}, an EV that fits is switched on only with probability 0.6, standing for EVs that do not need to charge yet. A small defector can then fit in the room that is left and be harmless on its own. We drew 2000 slots for each kind and each $N \in \{4, 8, 12\}$. Each EV told to wait defects with probability 0.3, and $\lambda = 5$. The comparison uses only slots with at least two defectors and a positive penalty, since with one defector all three rules agree.
 
 \begin{table}[ht]
 \centering
-\caption{Split rules on the same defection events. ``Gap to Shapley'' is the share of the penalty that would move to different EVs if the rule were replaced by Shapley. A defector is below $\rho_i$ when it pays less than it would as a lone defector. A group is subsidised when some set of defectors pays less than the penalty it would cause alone.}
+\caption{Split rules on the same defection events. ``Gap to Shapley'' is the average share of the penalty that would move to different EVs if the rule were replaced by Shapley. A defector is below $c(\{i\})$ when it pays less than it would as the only defector. A group is subsidised when some set of defectors pays less than the penalty it would cause by itself.}
 \label{tab:penalty-rules}
-\small
-\IfFileExists{figures/penalty_rules_table.tex}{\input{figures/penalty_rules_table.tex}}{\fbox{Run experiments/make\_figures.py to create this table.}}
+\resizebox{\textwidth}{!}{\IfFileExists{figures/penalty_rules_table.tex}{\input{figures/penalty_rules_table.tex}}{\fbox{Run experiments/make\_figures.py to create this table.}}}
 \end{table}
 
-Table~\ref{tab:penalty-rules} has the results. The equal split goes wrong in a specific way: a small charger pays the same as a big one, so 3.3~kW cars end up paying about 124~Rs per kW and 11~kW cars about 82. In 12\% of the events some defector paid less than $\rho_i$, which is exactly the case where the mediator's obedience constraint stops holding. Shapley never did this, as Section~\ref{sec:shapley} predicts.
+Table~\ref{tab:penalty-rules} has the results. The equal split goes wrong in a specific way: a small charger pays the same as a big one. In full slots, 3.3~kW cars end up paying about 124~Rs per kW and 11~kW cars about 82. Some defector paid less than $c(\{i\})$ in 12\% of the full slots and 7\% of the slots with spare capacity. Those are the slots where the guarantee of Section~\ref{sec:shapley} is lost. Shapley never did this, as the argument there predicts.
 
-We expected proportional split to be clearly worse than Shapley, and it was not. It also never undercharged anyone, and on average only 0.4\% of the penalty would move if we switched it for Shapley. The reason is the same convexity argument: the cost of a group depends only on its total power and grows faster than linearly, so charging by kW never asks a group for less than its own cost. The two rules differ mainly in how they treat spare capacity left in the recommendation. We keep Shapley because the guarantee holds for it by construction, but in this model proportional split would be an acceptable and much cheaper alternative.
+We expected proportional split to be clearly worse than Shapley. It also never charged a defector or a group less than its own cost, for the same convexity reason: the cost of a group depends only on its total power and grows faster than linearly, so charging by kW never asks a group for too little. In full slots the two rules almost agree, with 0.4\% of the penalty moving on average. With spare capacity they drift apart, by 2.4\% on average and up to 29\% in a single slot. The difference comes from defectors who would be harmless alone, which is 21\% of the defectors in those slots. Proportional split charges them purely by kW. Shapley charges them for the extra overload they add once the others are already charging. We keep Shapley because this is the answer to the question of who caused how much of the overload, and the guarantee follows from it directly.
+
+Every percentage in Table~\ref{tab:penalty-rules} is the same for any $\lambda > 0$, because all costs are multiplied by $\lambda$. Only the Rs per kW columns change.
 
 \begin{figure}[ht]
 \centering
-\IfFileExists{figures/penalty_rs_per_kw.pdf}{\includegraphics[width=0.62\textwidth]{figures/penalty_rs_per_kw.pdf}}{\fbox{figure missing}}
-\caption{Average penalty per kW of charger rating, for defectors in slots with at least two defectors.}
+\IfFileExists{figures/penalty_rs_per_kw.pdf}{\includegraphics[width=0.95\textwidth]{figures/penalty_rs_per_kw.pdf}}{\fbox{figure missing}}
+\caption{Average penalty per kW of charger rating, for defectors in slots with at least two defectors and a positive penalty. Left: full recommendations. Right: recommendations with spare capacity.}
 \label{fig:rs-per-kw}
 \end{figure}
 
 \begin{figure}[ht]
 \centering
 \IfFileExists{figures/defection_rate.pdf}{\includegraphics[width=0.95\textwidth]{figures/defection_rate.pdf}}{\fbox{figure missing}}
-\caption{Effect of the defection rate on the same kind of synthetic slots (\texttt{experiments/run\_defection\_rate.py}, 1000 slots per point). Left: share of slots above $\cmax$. Right: mean penalty per slot.}
+\caption{Effect of the defection rate on synthetic slots with full recommendations (\texttt{experiments/run\_defection\_rate.py}, 1000 slots per point). Left: share of slots above $\cmax$. Right: mean penalty per slot.}
 \label{fig:defection-rate}
 \end{figure}
 

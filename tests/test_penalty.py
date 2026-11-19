@@ -21,7 +21,8 @@ def brute_shapley(rec, act, p, c_max, lam):
     """Shapley by averaging marginal costs over every ordering of defectors."""
     rec, act, p = np.asarray(rec), np.asarray(act), np.asarray(p, float)
     d = list(np.flatnonzero((rec == 0) & (act == 1)))
-    base = rec @ p
+    # Base load: what every non-defector actually drew.
+    base = sum(act[j] * p[j] for j in range(len(rec)) if j not in d)
 
     def cost(members):
         load = base + sum(p[j] for j in members)
@@ -37,8 +38,12 @@ def brute_shapley(rec, act, p, c_max, lam):
     return out / factorial(len(d)) if d else out
 
 
-def random_event(rng, n=None, safe=True, defect_rate=0.5):
-    """A random slot: ratings, limit, a recommendation and the actions taken."""
+def random_event(rng, n=None, safe=True, defect_rate=0.5, wait_rate=0.2):
+    """A random slot: ratings, limit, a recommendation and the actions taken.
+
+    Some EVs told to charge wait instead (``wait_rate``), so the tests also
+    cover slots where the real load is below the recommended one.
+    """
     n = n or int(rng.integers(2, 8))
     p = rng.choice(RATINGS_KW, size=n)
     c_max = float(rng.uniform(0.3, 0.8) * p.sum())
@@ -48,6 +53,7 @@ def random_event(rng, n=None, safe=True, defect_rate=0.5):
             rec[i] = int(rng.random() < 0.7) if not safe else 1
     act = rec.copy()
     act[(rec == 0) & (rng.random(n) < defect_rate)] = 1
+    act[(rec == 1) & (rng.random(n) < wait_rate)] = 0
     lam = float(rng.uniform(0.5, 10.0))
     return rec, act, p, c_max, lam
 
@@ -137,6 +143,33 @@ def test_unsafe_recommendation_only_extra_cost_is_split():
         assert pen.sum() == pytest.approx(full_penalty - base_penalty)
 
 
+def test_no_real_overload_means_no_penalty_even_if_someone_waited():
+    # Told ON, A waits. Told OFF, B charges. Real load 7 kW on a 10 kW limit.
+    rec, act, p = [1, 0], [0, 1], [7.0, 7.0]
+    assert pn.overload_kw(act, p, 10.0) == 0.0
+    for rule in pn.SPLIT_RULES:
+        assert np.all(pn.split_penalty(rule, rec, act, p, 10.0, 1.0) == 0), rule
+
+
+def test_waiting_ev_frees_capacity_for_defectors():
+    # EV 0 (7 kW) and EV 1 (3 kW) are told ON; EV 0 waits. EV 2 (3 kW) and
+    # EV 3 (7 kW) defect. Real load is 3 + 3 + 7 = 13 kW on a 10 kW limit.
+    rec, act, p = [1, 1, 0, 0], [0, 1, 1, 1], [7.0, 3.0, 3.0, 7.0]
+    real = pn.penalty_total(pn.overload_kw(act, p, 10.0), 1.0)
+    assert real == pytest.approx(9.0)          # 13 kW on 10 kW
+    for rule in pn.SPLIT_RULES:
+        pen = pn.split_penalty(rule, rec, act, p, 10.0, 1.0)
+        assert pen.sum() == pytest.approx(real), rule
+        assert pen[0] == 0 and pen[1] == 0, rule
+
+
+def test_golden_b_with_spare_ev_waiting():
+    # Golden B plus a third EV that was told ON and waited. Nothing changes
+    # for the defector because the waiting EV was not adding load anyway.
+    rec, act, p = [1, 0, 1], [1, 1, 0], [7.0, 7.0, 3.0]
+    assert pn.shapley_split(rec, act, p, 10.0, 1.0) == pytest.approx([0, 16, 0])
+
+
 # ---------------------------------------------------------- properties ----
 
 @pytest.mark.parametrize("seed", range(200))
@@ -175,6 +208,20 @@ def test_shapley_never_below_lone_penalty_or_any_group_cost(seed):
     for mask in range(1, 1 << dset.size):
         members = [dset[k] for k in range(dset.size) if (mask >> k) & 1]
         assert pen[members].sum() >= costs[mask] - 1e-7
+
+
+@pytest.mark.parametrize("seed", range(300))
+def test_charges_never_exceed_the_real_penalty(seed):
+    rng = np.random.default_rng(13000 + seed)
+    rec, act, p, c_max, lam = random_event(rng, safe=bool(seed % 2))
+    real = pn.penalty_total(pn.overload_kw(act, p, c_max), lam)
+    b = sum(a * q for r, a, q in zip(rec, act, p) if not (r == 0 and a == 1))
+    for rule in pn.SPLIT_RULES:
+        pen = pn.split_penalty(rule, rec, act, p, c_max, lam)
+        assert pen.sum() <= real + 1e-7, rule
+        if b <= c_max:
+            # Obedient load is safe, so the defectors carry the whole penalty.
+            assert pen.sum() == pytest.approx(real, abs=1e-7), rule
 
 
 def test_equal_split_can_undercharge_a_big_defector():

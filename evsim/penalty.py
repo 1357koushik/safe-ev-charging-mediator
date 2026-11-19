@@ -17,18 +17,32 @@ Conventions (docs/Work_Division_Plan.md, section 3.4):
 
 What gets split
 ---------------
-The cost of a set S of defectors is the extra penalty they cause on top of
-the recommended profile::
+Let B be the load the obedient EVs actually drew in the slot, that is, the
+executed load of everyone who is not a defector. The cost of a set S of
+defectors is the extra penalty they add on top of B::
 
-    c(S) = P(L(rec) + sum of p_rated_kw over S) - P(L(rec))
+    c(S) = P(B + sum of p_rated_kw over S) - P(B)
     P(L) = lam * max(0, L - c_max_kw) ** 2
 
-When the recommendation is safe, which the mediator guarantees, P(L(rec)) is
-zero and the defectors share the whole penalty. Baselines such as "charge
-immediately" can recommend an unsafe profile. The overload in that profile is
-caused by the policy, not by anyone who disobeyed, so it is not charged to
-the defectors. All three rules below split the same amount, c(D), so they can
-be compared fairly.
+B uses what the obedient EVs did, not what they were told. An EV told to
+charge may wait instead, and the load it leaves free must count, or a
+defector would be charged for an overload that never happened. Two results
+follow:
+
+* If the transformer was not overloaded, nobody pays.
+* The shares never add up to more than the real penalty P(L(act)). They are
+  equal to it whenever B itself is under the limit, which is always the case
+  with the mediator, since its recommendations are safe.
+
+B can be over the limit only when the recommendation itself is unsafe, as a
+baseline such as "charge immediately" can produce. That part of the overload
+is the policy's fault, not the defectors', so it is not charged to them. All
+three rules below split the same amount, c(D), so they can be compared
+fairly.
+
+When every obedient EV does exactly what it was told, B is the load of the
+recommendation, and a lone defector's c({i}) equals the rho_i the mediator
+uses (``lone_defection_penalty``).
 """
 
 from __future__ import annotations
@@ -142,14 +156,21 @@ def find_defectors(rec, act) -> np.ndarray:
     return np.flatnonzero((rec == 0) & (act == 1))
 
 
+def _obedient_load(rec, act, p) -> float:
+    """B: executed load of every EV that is not a defector."""
+    obedient = ~((rec == 0) & (act == 1))
+    return float(act[obedient] @ p[obedient])
+
+
 def defection_cost(rec, act, p_rated_kw, c_max_kw, lam) -> float:
     """c(D): the extra penalty caused by all defectors together, in Rs.
 
-    This is the amount every split rule divides. With a safe recommendation
-    it equals the total penalty of the slot.
+    This is the amount every split rule divides. It is zero when the
+    executed profile is within the limit, and equals the real penalty of the
+    slot whenever the obedient EVs' own load is within the limit.
     """
     rec, act, p, c_max_kw, lam = _check_inputs(rec, act, p_rated_kw, c_max_kw, lam)
-    base = rec @ p
+    base = _obedient_load(rec, act, p)
     d = find_defectors(rec, act)
     return float(_penalty_from_load(base + p[d].sum(), c_max_kw, lam)
                  - _penalty_from_load(base, c_max_kw, lam))
@@ -169,7 +190,7 @@ def coalition_costs(rec, act, p_rated_kw, c_max_kw, lam):
         raise ValueError(
             f"{d} defectors is more than the exact limit of {MAX_EXACT_DEFECTORS}"
         )
-    base = rec @ p
+    base = _obedient_load(rec, act, p)
     masks = np.arange(1 << d)
     bits = (masks[:, None] >> np.arange(d)) & 1          # (2^d, d)
     sub_kw = bits @ p[dset] if d else np.zeros(1)
@@ -185,7 +206,8 @@ def shapley_split(rec, act, p_rated_kw, c_max_kw, lam) -> np.ndarray:
 
     Obedient EVs get 0. The shares add up to ``defection_cost``. Because the
     penalty is convex in the load, a defector's Shapley share is never below
-    the penalty it would pay as a lone defector (see test_penalty.py).
+    c({i}), the penalty it would pay if it were the only defector against the
+    same obedient load (see test_penalty.py).
     """
     rec, act, p, c_max_kw, lam = _check_inputs(rec, act, p_rated_kw, c_max_kw, lam)
     pen = np.zeros(rec.size)

@@ -7,7 +7,7 @@ reads from here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -50,4 +50,3 @@ class MediatorResult:
     eps: float
     status: str
     runtime_ms: float
-    extra: dict = field(default_factory=dict)

@@ -71,7 +71,7 @@ Each person also writes the report section for their own module, in their own wo
 
 ### 3.1 Tools
 
-- Python 3.11, `numpy`, `scipy`, `matplotlib`, `pandas`, `pytest`. Versions pinned in `requirements.txt`.
+- Python 3.12 or newer, `numpy`, `scipy`, `matplotlib`, `pandas`, `pytest`. Versions pinned in `requirements.txt`. (Changed from 3.11 on 20 November: the pinned numpy 2.5.1 and scipy 1.18.0 do not install on 3.11.)
 - No other solver or library without telling the group.
 
 ### 3.2 Folder layout
@@ -118,8 +118,9 @@ Each person also writes the report section for their own module, in their own wo
 - A joint profile is an integer b from 0 to 2^N - 1. EV i is ON when `(b >> i) & 1` is 1.
 - Slot 0 is 18:00 to 18:15. There are 52 slots. `depart_slot` is the first slot in which the EV is gone, so `k_left = depart_slot - t`.
 - Per-EV vectors are numpy arrays of shape (N,). Q-values are shape (N, 2), column 0 is OFF and column 1 is ON.
-- Randomness: every function that needs it takes a `numpy.random.Generator` argument. Nobody calls `np.random.seed` or the global `np.random` functions. Run seed is `BASE_SEED + run_index`.
+- Randomness: every function that needs it takes a `numpy.random.Generator` argument. Nobody calls `np.random.seed` or the global `np.random` functions. Run seed is `BASE_SEED + run_index`. Run indices already in use: 0 to 5 by `run_penalty_rules.py` and 100 to 132 by `run_defection_rate.py`. Pick a different range for new experiments and add it here.
 - Float comparisons use `EPS`. A profile is safe when `load <= c_max_kw + EPS`.
+- An EV that is not connected in a slot (not yet arrived, or already gone) has `rec = act = 0`. The penalty code cannot tell such an EV from one that waited, so `sim.py` calls `penalty.check_connected(rec, act, connected)` every slot.
 
 ### 3.5 Names in `common.py`
 
@@ -177,10 +178,18 @@ These are fixed. If one has to change, post it in the group and update this file
 
     # penalty.py
     overload_kw(act, p_rated_kw, c_max_kw) -> float
-    penalty_total(overload_kw: float, lam: float) -> float
+    penalty_total(overload_kw: float, lam: float, *, lam_lin=0.0) -> float
     find_defectors(rec, act) -> np.ndarray            # indices
-    shapley_split(rec, act, p_rated_kw, c_max_kw, lam) -> np.ndarray   # (N,)
+    shapley_split(rec, act, p_rated_kw, c_max_kw, lam, *, lam_lin=0.0) -> np.ndarray   # (N,)
     equal_split(...)  and  proportional_split(...)    # same arguments and return
+    split_penalty(rule, rec, act, p_rated_kw, c_max_kw, lam, *, lam_lin=0.0)   # by rule name, for sim.py
+    lone_defection_penalty(load_others_kw, p_i_kw, c_max_kw, lam, *, lam_lin=0.0)   # rho_i, for mediator.py; accepts arrays
+    check_connected(rec, act, connected) -> None      # raises if a disconnected EV has rec or act = 1
+
+    The penalty for an overload of x kW is lam * x**2 + lam_lin * x. lam_lin
+    is an optional linear term (Rs per kW), 0 unless passed. Without it a small
+    overshoot costs almost nothing (0.3 kW at lam = 5 is 0.45 Rs). If we turn
+    it on, the mediator must pass the same lam_lin to lone_defection_penalty.
 
     # mediator.py
     recommend(q, p_rated_kw, c_max_kw, lam, rng) -> MediatorResult

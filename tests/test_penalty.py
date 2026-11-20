@@ -17,17 +17,19 @@ from evsim import penalty as pn
 TOL = 1e-9
 
 
-def brute_shapley(rec, act, p, c_max, lam):
+def brute_shapley(rec, act, p, c_max, lam, lam_lin=0.0):
     """Shapley by averaging marginal costs over every ordering of defectors."""
     rec, act, p = np.asarray(rec), np.asarray(act), np.asarray(p, float)
     d = list(np.flatnonzero((rec == 0) & (act == 1)))
     # Base load: what every non-defector actually drew.
     base = sum(act[j] * p[j] for j in range(len(rec)) if j not in d)
 
+    def pen(load):
+        x = max(0.0, load - c_max)
+        return lam * x ** 2 + lam_lin * x
+
     def cost(members):
-        load = base + sum(p[j] for j in members)
-        return (lam * max(0.0, load - c_max) ** 2
-                - lam * max(0.0, base - c_max) ** 2)
+        return pen(base + sum(p[j] for j in members)) - pen(base)
 
     out = np.zeros(len(rec))
     for order in permutations(d):
@@ -287,3 +289,85 @@ def test_proportional_also_never_subsidises_a_group(seed):
     for mask in range(1, 1 << dset.size):
         members = [dset[k] for k in range(dset.size) if (mask >> k) & 1]
         assert pen[members].sum() >= costs[mask] - 1e-7
+
+
+# ------------------------------------------------------ linear term ----
+
+def test_linear_term_golden_b():
+    # 4 kW over: 1 * 16 + 2 * 4 = 24 Rs.
+    assert pn.penalty_total(4.0, 1.0, lam_lin=2.0) == pytest.approx(24.0)
+    pen = pn.shapley_split([1, 0], [1, 1], [7.0, 7.0], 10.0, 1.0, lam_lin=2.0)
+    assert pen == pytest.approx([0.0, 24.0])
+
+
+def test_linear_term_puts_a_floor_under_small_overshoots():
+    # 0.3 kW over: quadratic alone is 0.45 Rs at lam = 5, linear adds 3 Rs.
+    quad = pn.lone_defection_penalty(6.7, 3.6, 10.0, 5.0)
+    both = pn.lone_defection_penalty(6.7, 3.6, 10.0, 5.0, lam_lin=10.0)
+    assert quad == pytest.approx(0.45)
+    assert both == pytest.approx(3.45)
+
+
+def test_linear_term_defaults_to_zero_everywhere():
+    rec, act, p = [1, 0, 0], [1, 1, 1], [7.0, 3.3, 7.0]
+    for rule in pn.SPLIT_RULES:
+        assert np.array_equal(pn.split_penalty(rule, rec, act, p, 10.0, 1.0),
+                              pn.split_penalty(rule, rec, act, p, 10.0, 1.0,
+                                               lam_lin=0.0))
+
+
+@pytest.mark.parametrize("seed", range(150))
+def test_guarantees_hold_with_linear_term(seed):
+    rng = np.random.default_rng(21000 + seed)
+    rec, act, p, c_max, lam = random_event(rng, safe=bool(seed % 2))
+    lam_lin = float(rng.uniform(0.0, 50.0))
+    lam = lam if seed % 3 else 0.0          # also the purely linear penalty
+    sh = pn.shapley_split(rec, act, p, c_max, lam, lam_lin=lam_lin)
+    assert sh == pytest.approx(brute_shapley(rec, act, p, c_max, lam, lam_lin),
+                               abs=1e-7)
+    total = pn.defection_cost(rec, act, p, c_max, lam, lam_lin=lam_lin)
+    dset, costs = pn.coalition_costs(rec, act, p, c_max, lam, lam_lin=lam_lin)
+    for rule in pn.SPLIT_RULES:
+        pen = pn.split_penalty(rule, rec, act, p, c_max, lam, lam_lin=lam_lin)
+        assert pen.sum() == pytest.approx(total, abs=1e-7), rule
+    for fn in (pn.shapley_split, pn.proportional_split):
+        pen = fn(rec, act, p, c_max, lam, lam_lin=lam_lin)
+        for mask in range(1, 1 << dset.size):
+            members = [dset[k] for k in range(dset.size) if (mask >> k) & 1]
+            assert pen[members].sum() >= costs[mask] - 1e-7
+
+
+# ------------------------------------------------- connected EVs ----
+
+def test_check_connected_accepts_a_clean_slot():
+    pn.check_connected([1, 0, 0], [1, 1, 0], [True, True, False])
+
+
+@pytest.mark.parametrize("rec, act", [([0, 0, 1], [0, 0, 0]),
+                                      ([0, 0, 0], [0, 0, 1])])
+def test_check_connected_flags_a_disconnected_ev(rec, act):
+    with pytest.raises(ValueError, match=r"\[2\]"):
+        pn.check_connected(rec, act, [True, True, False])
+
+
+def test_check_connected_shape_mismatch():
+    with pytest.raises(ValueError):
+        pn.check_connected([1, 0], [1, 0], [True, True, False])
+
+
+# --------------------------------------------------- more bad inputs ----
+
+@pytest.mark.parametrize("call", [
+    lambda: pn.penalty_total(float("nan"), 1.0),
+    lambda: pn.penalty_total(float("inf"), 1.0),
+    lambda: pn.penalty_total(1.0, 1.0, lam_lin=-1.0),
+    lambda: pn.lone_defection_penalty(5.0, -3.0, 10.0, 1.0),
+    lambda: pn.lone_defection_penalty(5.0, 0.0, 10.0, 1.0),
+    lambda: pn.lone_defection_penalty(float("nan"), 3.0, 10.0, 1.0),
+    lambda: pn.lone_defection_penalty(-1.0, 3.0, 10.0, 1.0),
+    lambda: pn.lone_defection_penalty(5.0, 3.0, float("nan"), 1.0),
+    lambda: pn.overload_kw([1, 1], [7.0, 7.0], -1.0),
+])
+def test_rejects_nan_and_negative_numbers(call):
+    with pytest.raises(ValueError):
+        call()

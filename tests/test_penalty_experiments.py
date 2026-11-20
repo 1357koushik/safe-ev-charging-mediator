@@ -81,3 +81,30 @@ def test_table_percentages_do_not_depend_on_lambda(tmp_path):
     assert np.allclose(a[cols].to_numpy(float), b[cols].to_numpy(float),
                        atol=1e-9, equal_nan=True)
     assert np.allclose(b["rs_per_kw_7"], 37.0 * a["rs_per_kw_7"])
+
+
+def test_figures_and_table_are_written(tmp_path):
+    from experiments import figures_penalty as fp
+    res, figs = tmp_path / "results", tmp_path / "figures"
+    dfd, dfe = run_penalty_rules.run(events_per_n=40, out_dir=res)
+    run_penalty_rules.summarise(dfd, dfe).to_csv(
+        res / "penalty_rules_summary.csv", index=False)
+    run_defection_rate.run(events=10, out_dir=res)
+    fp.make_all(results=res, out_dir=figs)
+    for name in ("penalty_rs_per_kw.pdf", "defection_rate.pdf",
+                 "penalty_rules_table.tex"):
+        assert (figs / name).stat().st_size > 0
+    table = (figs / "penalty_rules_table.tex").read_text()
+    assert table.count("Shapley &") == 2 and "nan" not in table
+
+
+def test_figures_survive_a_missing_rating_class(tmp_path):
+    """If no 11 kW car defected, the table shows -- and the plot has a gap."""
+    from experiments import figures_penalty as fp
+    res = tmp_path / "results"
+    dfd, dfe = run_penalty_rules.run(events_per_n=40, out_dir=res)
+    summary = run_penalty_rules.summarise(dfd, dfe)
+    summary.loc[summary.rec_mode == "spare", "rs_per_kw_11"] = float("nan")
+    fp.plot_rs_per_kw(summary, tmp_path / "f")
+    fp.write_rules_table(summary, tmp_path / "f")
+    assert "--" in (tmp_path / "f" / "penalty_rules_table.tex").read_text()

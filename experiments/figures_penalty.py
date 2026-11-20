@@ -68,8 +68,9 @@ def plot_rs_per_kw(summary: pd.DataFrame, out_dir=FIGURES):
         s = summary[summary.rec_mode == mode].set_index("rule")
         for k, rule in enumerate(["shapley", "proportional", "equal"]):
             xs = [i + (k - 1) * (width + 0.02) for i in range(len(cols))]
-            # A rating class with no defectors in this mode is left empty.
-            ys = [s.loc[rule, c] if pd.notna(s.loc[rule, c]) else 0.0 for c in cols]
+            # A rating class with no defectors in this mode gets no bar. A
+            # zero-height bar would read as "pays nothing", which is wrong.
+            ys = [s.loc[rule, c] for c in cols]
             ax.bar(xs, ys, width=width, color=RULE_COLOR[rule],
                    label=RULE_LABEL[rule], edgecolor="white", linewidth=1.0)
         ax.set_xticks(range(len(cols)),

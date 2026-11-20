@@ -265,7 +265,7 @@ Figure~\ref{fig:defection-rate} shows how quickly things get worse when EVs igno
 
 \section{Limitations}
 
-EVs are assumed to report their Q-values truthfully. The Q-values come from a plan in which the EV can charge whenever it likes, so they ignore future recommendations to wait and future penalties. The penalty depends on the recommendation as well as the action, which is a point we are confirming with the course instructor. If an EV's overload $\delta_j$ is very small, the $\lambda$ needed for obedience is very large. The model leaves out variable charging power, voltage and three-phase effects, battery ageing and real tariff rules.
+EVs are assumed to report their Q-values truthfully. The Q-values come from a plan in which the EV can charge whenever it likes, so they ignore future recommendations to wait and future penalties. The penalty depends on the recommendation as well as the action, which is a point we are confirming with the course instructor. If an EV's overload $\delta_j$ is very small, the $\lambda$ needed for obedience is very large: at $\lambda = 5$ an overshoot of 0.3~kW costs only 0.45~Rs. The code can add a linear term, $f(L) = \lambda x^2 + \lambda_1 x$ with $x = \max\{0, L - \cmax\}$, which puts a floor under small overshoots. This $f$ is still convex, so the guarantees in Section~\ref{sec:shapley} still hold. A fixed charge for any overload would not be convex, and those guarantees would fail. All results above use $\lambda_1 = 0$. The model leaves out variable charging power, voltage and three-phase effects, battery ageing and real tariff rules.
 
 \section{Contributions}
 

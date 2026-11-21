@@ -263,6 +263,29 @@ Every percentage in Table~\ref{tab:penalty-rules} is the same for any $\lambda >
 
 Figure~\ref{fig:defection-rate} shows how quickly things get worse when EVs ignore the mediator. With 12 EVs, a defection rate of 10\% already puts about half of the slots over the limit. The penalty grows faster than the defection rate, because more defectors stack on the same overload and the penalty is quadratic in it. These numbers are an upper bound: every EV in these slots wants to charge, while in the full simulator only EVs with $g_{i,t} > 0$ consider defecting.
 
+\subsection{Equilibrium incentive gap and mediator scalability}
+\label{sec:res-mediator}
+
+We evaluated the mediator across penalty weights $\lambda$ and fleet sizes $N \in \{4, 8, 12\}$ (\texttt{experiments/run\_mediator\_lambda.py} and \texttt{experiments/run\_mediator\_runtime.py}).
+
+\begin{figure}[ht]
+\centering
+\IfFileExists{figures/mediator_eps_lambda.pdf}{\includegraphics[width=0.95\textwidth]{figures/mediator_eps_lambda.pdf}}{\fbox{figure missing}}
+\caption{Incentive gap and equilibrium existence against $\lambda$. Left: mean slack $\varepsilon^\star$. Right: percentage of slots with an exact correlated equilibrium ($\varepsilon^\star = 0$).}
+\label{fig:eps-lambda}
+\end{figure}
+
+Figure~\ref{fig:eps-lambda} shows the effect of the overload penalty weight $\lambda$. At $\lambda = 0$, waiting is unpenalised, so any EV with $g_{i,t} > 0$ prefers to charge; the mean incentive gap $\varepsilon^\star$ is $6.20$~Rs for $N=4$, $3.06$~Rs for $N=8$, and $3.48$~Rs for $N=12$, with zero slots reaching an exact equilibrium. As $\lambda$ increases, $\varepsilon^\star$ drops rapidly toward zero. For $N=8$, $92\%$ of slots attain $\varepsilon^\star = 0$ at $\lambda = 0.5$, and $100\%$ do so for all $\lambda \ge 1.0$~Rs/kW$^2$. For $N=12$, $100\%$ exact equilibrium is reached by $\lambda = 1.5$. For $N=4$, exact equilibria appear in $64\%$ of slots at $\lambda = 0.5$ and reach $96\%$ at $\lambda = 5.5$. The remaining $4\%$ represent tight instances where a single left-out EV causes only a tiny overshoot ($\delta \approx 0.3$~kW), where $\delta^2 = 0.09$ requires $\lambda \ge 5.6 / 0.09 \approx 62$ for full compliance without a linear penalty term.
+
+\begin{figure}[ht]
+\centering
+\IfFileExists{figures/mediator_runtime.pdf}{\includegraphics[width=0.95\textwidth]{figures/mediator_runtime.pdf}}{\fbox{figure missing}}
+\caption{Mediator computational scaling. Left: solver runtime against $N$ (median and min--max range over repetitions). Right: total profile count $2^N$ compared to the mean number of safe profiles kept in the LP.}
+\label{fig:runtime}
+\end{figure}
+
+Figure~\ref{fig:runtime} evaluates the solve time of the two-phase linear program as $N$ grows from 2 to 12. Pruning profiles with $L(a) > \cmax$ eliminates roughly half of the search space: for $N=12$, only 2069 profiles out of 4096 are safe on average. The median runtime is $2.18$~ms for $N=2$, $2.34$~ms for $N=4$, $3.77$~ms for $N=6$, $20.50$~ms for $N=8$, $325.03$~ms for $N=10$, and $1.67$~seconds for $N=12$. Because slots are 15 minutes long, solve times under two seconds easily satisfy online real-time operation for up to 12 EVs.
+
 \section{Limitations}
 
 EVs are assumed to report their Q-values truthfully. The Q-values come from a plan in which the EV can charge whenever it likes, so they ignore future recommendations to wait and future penalties. The penalty depends on the recommendation as well as the action, which is a point we are confirming with the course instructor. If an EV's overload $\delta_j$ is very small, the $\lambda$ needed for obedience is very large: at $\lambda = 5$ an overshoot of 0.3~kW costs only 0.45~Rs. The code can add a linear term, $f(L) = \lambda x^2 + \lambda_1 x$ with $x = \max\{0, L - \cmax\}$, which puts a floor under small overshoots. This $f$ is still convex, so the guarantees in Section~\ref{sec:shapley} still hold. A fixed charge for any overload would not be convex, and those guarantees would fail. All results above use $\lambda_1 = 0$. The model leaves out variable charging power, voltage and three-phase effects, battery ageing and real tariff rules.
@@ -278,7 +301,7 @@ EVs are assumed to report their Q-values truthfully. The Q-values come from a pl
 Member & Assigned task & Fulfilled \\
 \midrule
 Busa Bhava Ram (24110083) & Local EV model, feasibility check, scenario generator, tests & to be filled \\
-Muppala Harshith (24110213) & Mediator LP, recommendation sampler, $\lambda$ and runtime experiments & to be filled \\
+Muppala Harshith (24110213) & Mediator LP, recommendation sampler, $\lambda$ and runtime experiments & Fulfilled \\
 Moram Raghavendra Sri Koushik (24110210) & Overload and penalty module, Shapley split, comparison of penalty rules & to be filled \\
 Sura Sravan Kumar (24110362) & Simulator, baseline policies, experiment scripts, figures, README & to be filled \\
 \bottomrule

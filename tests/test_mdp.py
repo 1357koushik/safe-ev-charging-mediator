@@ -101,19 +101,37 @@ def test_solve_q_rejects_non_finite_price(ev):
     prices[3] = np.nan
     with pytest.raises(ValueError, match="finite"):
         solve_q(ev, 0.4, 0, prices)
-def test_must_charge_when_k_equals_k_req(ev):
-    # At this SoC, exactly the remaining charging slots are needed.
-    ev_exact = EVParams(
-        ev_id=0,
-        e_cap_kwh=50.0,
-        p_rated_kw=7.0,
-        eta=0.9,
-        soc_target=0.8,
+
+def test_infeasible_deadline_still_prefers_charging(ev):
+    # The EV needs 13 charging slots but only 1 slot remains.
+    infeasible_ev = EVParams(
+        ev_id=ev.ev_id,
+        e_cap_kwh=ev.e_cap_kwh,
+        p_rated_kw=ev.p_rated_kw,
+        eta=ev.eta,
+        soc_target=ev.soc_target,
         arrive_slot=0,
-        depart_slot=13,
+        depart_slot=1,
     )
 
-    price = np.ones(52)
-    q_off, q_on = solve_q(ev_exact, 0.4, 0, price)
+    current_soc = 0.4
+    current_slot = 0
+
+    required_slots = k_req(infeasible_ev, current_soc)
+    remaining_slots = infeasible_ev.depart_slot - current_slot
+
+    # Confirm that reaching the target is impossible.
+    assert required_slots == 13
+    assert remaining_slots == 1
+    assert remaining_slots < required_slots
+
+    # Even though the target is unreachable, charging reduces
+    # the unavoidable unmet-energy penalty.
+    q_off, q_on = solve_q(
+        infeasible_ev,
+        current_soc,
+        current_slot,
+        np.ones(52),
+    )
 
     assert q_on > q_off

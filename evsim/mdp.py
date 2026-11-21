@@ -56,28 +56,42 @@ def k_req(ev: EVParams, soc: float) -> int:
     return math.ceil(energy_needed_kwh / energy_added_per_slot_kwh - EPS)
 
 
-def solve_q(ev, soc, t, price):
-    if not 0.0 <= soc <= 1.0:
-        raise ValueError("soc must be between 0 and 1")
+
+def solve_q(
+    ev: EVParams,
+    soc: float,
+    t: int,
+    price: np.ndarray,
+) -> tuple[float, float]:
+    """Return (Q_OFF, Q_ON) using backward dynamic programming."""
+
+    # Validate EV parameters and current SoC.
+    _validate_ev(ev)
+    _validate_soc(soc)
+
+    # Validate the current time slot.
     if t < ev.arrive_slot or t >= ev.depart_slot:
         raise ValueError("t must be an active EV time slot")
-    if len(price) < ev.depart_slot:
-        raise ValueError("price array is too short")
-    if not np.all(np.isfinite(price)):
-        raise ValueError("price must contain finite values")
+
+    # Convert prices before checking their shape or length.
     price = np.asarray(price, dtype=float)
 
     if price.ndim != 1:
         raise ValueError("price must be one-dimensional")
 
+    if len(price) < ev.depart_slot:
+        raise ValueError("price array is too short")
+
     if not np.all(np.isfinite(price)):
         raise ValueError("price must contain finite values")
+
     @lru_cache(maxsize=None)
-    def value(current_soc, current_t):
+    def value(current_soc: float, current_t: int) -> float:
         if current_t >= ev.depart_slot:
             unmet_kwh = max(
                 0.0, ev.soc_target - current_soc
             ) * ev.e_cap_kwh
+
             return -M_UNMET * unmet_kwh
 
         soc_off = step_soc(ev, current_soc, OFF)
@@ -89,6 +103,7 @@ def solve_q(ev, soc, t, price):
 
         return max(q_off, q_on)
 
+    # Calculate the Q-values for the two possible current actions.
     q_off = GAMMA * value(step_soc(ev, soc, OFF), t + 1)
 
     reward_on = -ev.p_rated_kw * DT_H * price[t]

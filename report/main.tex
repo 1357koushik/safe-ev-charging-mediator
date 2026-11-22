@@ -53,7 +53,7 @@ Uncoordinated home charging overloading local transformers is a known problem \c
 
 Time is divided into slots of $\dt = 0.25$ hours. The night has $T = 52$ slots, from 18:00 to 07:00. Table~\ref{tab:inputs} lists what EV $i$ knows at slot $t$.
 
-\begin{table}[h]
+\begin{table}[!htb]
 \centering
 \caption{Inputs of EV $i$ at slot $t$.}
 \label{tab:inputs}
@@ -240,7 +240,7 @@ The cost of that safety depends on how crowded the night is. With 4 EVs the medi
 
 The share $\alpha_t$ in the EVs' plans matters here. Without it, every EV planned to wait for the cheap 22:00--06:00 block, so before 22:00 most of them had $g_{i,t} < 0$ and the mediator, which respects that, left the transformer nearly idle. With $\alpha_t$ the EVs that are short of time start in the evening.
 
-\begin{table}[ht]
+\begin{table}[!htb]
 \centering
 \caption{Policy comparison, $\cmax = 20$~kW, mean over 30 seeds. Overloaded slots: 15-minute slots with $L > \cmax$. Total overload: sum of $\Delta C$ over all slots. EVs at target: share of cars at or above their target SoC when they leave. Unmet energy: energy still missing per night.}
 \label{tab:policy}
@@ -249,7 +249,7 @@ The share $\alpha_t$ in the EVs' plans matters here. Without it, every EV planne
 
 Figure~\ref{fig:load-profile} shows the load over one night for charge-on-arrival and the mediator with $N = 8$. Charge-on-arrival reaches almost 50~kW in the evening, more than twice the limit. The mediator stays below 20~kW all night and starts using the transformer from about 19:00, so the load is spread over the whole night instead of piling up after 22:00.
 
-\begin{figure}[ht]
+\begin{figure}[!htb]
 \centering
 \repfig{width=0.95\textwidth}{load_profile.pdf}
 \caption{Total load over one overnight session, $N = 8$, seed 2225. The dotted line is $\cmax = 20$~kW. Charge-on-arrival (solid red) exceeds the limit in the evening. The mediator (dashed blue) stays within it and spreads the load over the night.}
@@ -261,7 +261,7 @@ Figure~\ref{fig:load-profile} shows the load over one night for charge-on-arriva
 
 Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per night changes as $\cmax$ is tightened from 40~kW down to 10~kW, with $N = 8$ EVs and 30 seeds (\texttt{experiments/run\_cmax\_sweep.py}). The three policies that ignore the limit overload it even at 40~kW (4 to 8 slots per night), and three to four times as often at 10~kW. The mediator and the urgency baseline stay at zero throughout. On target completion, the mediator gets 91\% of cars to their target at 30 and 40~kW and 90\% at 25~kW, against 96\% for charge-on-arrival. At 20, 15 and 10~kW it gets 63\%, 43\% and 29\%. The urgency baseline does better at 20~kW (81\%) but worse at 15 and 10~kW (37\% and 15\%). So the mediator keeps the transformer safe at every limit, and gets most cars charged as long as the limit is not far below the cars' combined demand.
 
-\begin{figure}[ht]
+\begin{figure}[!htb]
 \centering
 \repfig{width=0.95\textwidth}{overload_vs_cmax.pdf}
 \caption{Mean overloaded slots per night against $\cmax$, $N = 8$, 30 seeds. The mediator and the urgency baseline stay at zero; the three policies that ignore the limit overload more as it tightens.}
@@ -274,7 +274,7 @@ Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per
 
 Table~\ref{tab:sensitivity} changes one thing at a time for the mediator with 8 EVs on 20~kW, over 10 seeds (\texttt{experiments/run\_sensitivity.py}). A flat tariff raises target completion from 64\% to 76\%: with no cheap block there is less reason for every EV to wait for the same slots. Making every charger 7~kW lowers it to 23\%. With mixed ratings a 3.3~kW car can often fill the gap left between larger ones, and with equal ratings that gap stays empty. When EVs ignore recommendations, the transformer is overloaded in 11 slots per night at a defection rate of 0.1 and 18 at 0.3. The defectors reach their targets more often, but they pay Shapley penalties of 2.4 and 9.6 times the whole electricity bill.
 
-\begin{table}[ht]
+\begin{table}[!htb]
 \centering
 \caption{The mediator under one change at a time, $N = 8$, $\cmax = 20$~kW, $\lambda = 5$, mean over 10 seeds.}
 \label{tab:sensitivity}
@@ -284,59 +284,32 @@ Table~\ref{tab:sensitivity} changes one thing at a time for the mediator with 8 
 \subsection{How the penalty is split}
 \label{sec:res-penalty}
 
-To compare split rules we do not need the whole night, only the slots where someone disobeys. We generated such slots directly (\texttt{experiments/run\_penalty\_rules.py}). Ratings are drawn from $\{3.3, 7, 11\}$~kW and $\cmax$ is between 30\% and 70\% of the total rating. We used two kinds of recommendation. In a \emph{full} recommendation the EVs are taken in random order and each one is switched on if it still fits. Nobody told to wait fits in what is left, so every defector overloads the transformer even alone. In a recommendation with \emph{spare capacity}, an EV that fits is switched on only with probability 0.6, standing for EVs that do not need to charge yet. A small defector can then fit in the room that is left and be harmless on its own. We drew 2000 slots for each kind and each $N \in \{4, 8, 12\}$. Each EV told to wait defects with probability 0.3, and $\lambda = 5$. The comparison uses only slots with at least two defectors and a positive penalty, since with one defector all three rules agree.
+To compare split rules we only need slots where someone disobeys, so we generated them directly (\texttt{experiments/run\_penalty\_rules.py}): ratings from $\{3.3, 7, 11\}$~kW, $\cmax$ between 30\% and 70\% of the total rating, 2000 slots for each $N \in \{4, 8, 12\}$, defection probability 0.3, $\lambda = 5$. In a \emph{full} recommendation EVs are switched on in random order while they fit, so every defector overloads the transformer even alone. With \emph{spare capacity} an EV that fits is switched on only with probability 0.6, so a small defector may be harmless alone. Only slots with at least two defectors and a positive penalty count, since with one defector all rules agree.
 
-\begin{table}[ht]
+\begin{table}[!htb]
 \centering
 \caption{Split rules on the same defection events. ``Gap to Shapley'' is the average share of the penalty that would move to different EVs if the rule were replaced by Shapley. A defector is below $c(\{i\})$ when it pays less than it would as the only defector. A group is subsidised when some set of defectors pays less than the penalty it would cause by itself.}
 \label{tab:penalty-rules}
 \resizebox{\textwidth}{!}{\reptab{penalty_rules_table.tex}}
 \end{table}
 
-Table~\ref{tab:penalty-rules} has the results. The equal split goes wrong in a specific way: a small charger pays the same as a big one. In full slots, 3.3~kW cars end up paying about 124~Rs per kW and 11~kW cars about 82. Some defector paid less than $c(\{i\})$ in 12\% of the full slots and 7\% of the slots with spare capacity. Those are the slots where the guarantee of Section~\ref{sec:shapley} is lost. Shapley never did this, as the argument there predicts.
-
-We expected proportional split to be clearly worse than Shapley. It also never charged a defector or a group less than its own cost, for the same convexity reason: the cost of a group depends only on its total power and grows faster than linearly, so charging by kW never asks a group for too little. In full slots the two rules almost agree, with 0.4\% of the penalty moving on average. With spare capacity they drift apart, by 2.4\% on average and up to 29\% in a single slot. The difference comes from defectors who would be harmless alone, which is 21\% of the defectors in those slots. Proportional split charges them purely by kW. Shapley charges them for the extra overload they add once the others are already charging. We keep Shapley because this is the answer to the question of who caused how much of the overload, and the guarantee follows from it directly.
-
-Every percentage in Table~\ref{tab:penalty-rules} is the same for any $\lambda > 0$, because all costs are multiplied by $\lambda$. Only the Rs per kW columns change.
-
-\begin{figure}[ht]
-\centering
-\repfig{width=0.95\textwidth}{penalty_rs_per_kw.pdf}
-\caption{Average penalty per kW of charger rating, for defectors in slots with at least two defectors and a positive penalty. Left: full recommendations. Right: recommendations with spare capacity.}
-\label{fig:rs-per-kw}
-\end{figure}
-
-\begin{figure}[ht]
-\centering
-\repfig{width=0.95\textwidth}{defection_rate.pdf}
-\caption{Effect of the defection rate on synthetic slots with full recommendations (\texttt{experiments/run\_defection\_rate.py}, 1000 slots per point). Left: share of slots above $\cmax$. Right: mean penalty per slot.}
-\label{fig:defection-rate}
-\end{figure}
-
-Figure~\ref{fig:defection-rate} shows how quickly things get worse when EVs ignore the mediator. With 12 EVs, a defection rate of 10\% already puts about half of the slots over the limit. The penalty grows faster than the defection rate, because more defectors stack on the same overload and the penalty is quadratic in it. These numbers are an upper bound: every EV in these slots wants to charge, while in the full simulator only EVs with $g_{i,t} > 0$ consider defecting.
+Under the equal split a small charger pays the same as a big one: in full slots 3.3~kW cars pay about 124~Rs per kW and 11~kW cars about 82. Some defector paid less than $c(\{i\})$ in 12\% of full slots and 7\% of slots with spare capacity, which is exactly where the guarantee of Section~\ref{sec:shapley} is lost. Shapley never did this. Proportional split never did either, for the same convexity reason. In full slots it is almost the same as Shapley (0.4\% of the penalty moves on average), but with spare capacity the gap is 2.4\% on average and up to 29\% in one slot. The difference is in the 21\% of defectors who would be harmless alone: proportional split charges them by kW, while Shapley charges them for the extra overload they add once others are charging, which is the question of who caused how much. All percentages in the table hold for any $\lambda > 0$, because every cost scales with $\lambda$.
 
 \subsection{Equilibrium incentive gap and mediator scalability}
 \label{sec:res-mediator}
 
 We evaluated the mediator across penalty weights $\lambda$ and fleet sizes $N \in \{4, 8, 12\}$ (\texttt{experiments/run\_mediator\_lambda.py} and \texttt{experiments/run\_mediator\_runtime.py}).
 
-\begin{figure}[ht]
+\begin{figure}[!htb]
 \centering
-\repfig{width=0.95\textwidth}{mediator_eps_lambda.pdf}
+\repfig{width=0.8\textwidth}{mediator_eps_lambda.pdf}
 \caption{Incentive gap and equilibrium existence against $\lambda$. Left: mean slack $\varepsilon^\star$. Right: percentage of slots with an exact correlated equilibrium ($\varepsilon^\star = 0$).}
 \label{fig:eps-lambda}
 \end{figure}
 
 Figure~\ref{fig:eps-lambda} shows the effect of the overload penalty weight $\lambda$. At $\lambda = 0$, waiting is unpenalised, so any EV with $g_{i,t} > 0$ prefers to charge; the mean incentive gap $\varepsilon^\star$ is $6.20$~Rs for $N=4$, $3.06$~Rs for $N=8$, and $3.48$~Rs for $N=12$, with zero slots reaching an exact equilibrium. As $\lambda$ increases, $\varepsilon^\star$ drops rapidly toward zero. For $N=8$, $92\%$ of slots attain $\varepsilon^\star = 0$ at $\lambda = 0.5$, and $100\%$ do so for all $\lambda \ge 1.0$~Rs/kW$^2$. For $N=12$, $100\%$ exact equilibrium is reached by $\lambda = 1.5$. For $N=4$, exact equilibria appear in $64\%$ of slots at $\lambda = 0.5$ and reach $96\%$ at $\lambda = 5.5$. The remaining $4\%$ represent tight instances where a single left-out EV causes only a tiny overshoot ($\delta \approx 0.3$~kW), where $\delta^2 = 0.09$ requires $\lambda \ge 5.6 / 0.09 \approx 62$ for full compliance without a linear penalty term.
 
-\begin{figure}[ht]
-\centering
-\repfig{width=0.95\textwidth}{mediator_runtime.pdf}
-\caption{Mediator computational scaling. Left: solver runtime against $N$ (median and min--max range over repetitions). Right: total profile count $2^N$ compared to the mean number of safe profiles kept in the LP.}
-\label{fig:runtime}
-\end{figure}
-
-Figure~\ref{fig:runtime} shows the solve time of the three-phase linear program as $N$ grows from 2 to 12. Removing profiles with $L(a) > \cmax$ drops about half of them: for $N=12$, 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$. Times depend on the machine, but they grow roughly with $2^N$, so each extra EV about doubles the work. A 15-minute slot leaves plenty of room at this size. The code refuses more than 16 EVs, where exact enumeration stops being practical.
+For the solve time we timed the three-phase linear program for $N$ from 2 to 12 (\texttt{results/mediator\_runtime.csv}). Removing profiles with $L(a) > \cmax$ drops about half of them: for $N=12$, 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$. Times depend on the machine, but they grow roughly with $2^N$, so each extra EV about doubles the work. A 15-minute slot leaves plenty of room at this size. The code refuses more than 16 EVs, where exact enumeration stops being practical.
 
 \section{Limitations}
 \label{sec:limits}
@@ -345,7 +318,7 @@ EVs are assumed to report their Q-values truthfully. Only defectors pay, so an E
 
 \section{Contributions}
 
-\begin{table}[h]
+\begin{table}[!htb]
 \centering
 \caption{Task of each member and whether it was completed.}
 \label{tab:contrib}

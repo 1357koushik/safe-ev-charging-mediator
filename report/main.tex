@@ -70,7 +70,7 @@ When the EV leaves ($K = 0$) it pays for the energy it is still missing:
 r_i^{\mathrm{end}}(s) = -M \cdot \max\bigl\{0,\; (\soc^{\mathrm{tgt}}_i - \soc)\, E_i\bigr\}.
 \label{eq:terminal}
 \end{equation}
-The first proposal mentioned $M$ but did not use it in any equation. Without \eqref{eq:terminal} the best plan is never to charge, since charging only costs money. $M$ has to be larger than $\max_t c_t / \eta_i$ so that buying a unit of energy is always cheaper than missing it.
+We need $M$ because without \eqref{eq:terminal} charging only costs money, so the best plan would be to never charge. $M$ has to be more than $\max_t c_t / \eta_i$ (the highest price per stored kWh), so buying a kWh is always cheaper than missing it.
 
 Backward induction from the departure slot gives
 \begin{equation}
@@ -82,7 +82,7 @@ g_{i,t} = Q_i(s_{i,t},1) - Q_i(s_{i,t},0)
 \end{equation}
 for the gain from charging in this slot instead of waiting.
 
-\paragraph{Planning with a share of the transformer.} The plan above assumes the EV can charge in any future slot it likes. Under the mediator that is not true: when the transformer is crowded, some requests are turned down. Each EV plans alone and cannot see the others, but they all see the same prices, so each one independently picks the cheap overnight block. On a crowded night they cannot all fit there. So in each slot the mediator announces one number,
+\paragraph{Planning with a share of the transformer.}\label{sec:prelim-alpha} The plan above assumes the EV can charge in any future slot it likes. Under the mediator that is not true: when the transformer is crowded, some requests are turned down. Each EV plans alone and cannot see the others, but they all see the same prices, so each one independently picks the cheap overnight block. On a crowded night they cannot all fit there. So in each slot the mediator announces one number,
 \begin{equation}
 \alpha_t = \min\Bigl\{1,\; \frac{\cmax}{\sum_{j \text{ connected}} P_j}\Bigr\},
 \end{equation}
@@ -102,7 +102,7 @@ If $K_{i,t} < K^{\mathrm{req}}_{i,t}$ the target cannot be met even by charging 
 
 \subsection{Why the first formulation failed}
 
-In the first proposal the mediator's incentive constraint for EV $i$ compared $Q_i(a_i)$ with $Q_i(a_i')$, and neither depends on the other EVs. Take two EVs with 7~kW chargers on a 10~kW transformer, both with $g > 0$. The constraint for an EV told to wait reads $\Pr(\text{told to wait}) \cdot (-g) \ge 0$, so that probability must be zero. Both must be told to charge, which is 14~kW and is not allowed. The linear program has no feasible point. This happens whenever more EVs want to charge than the transformer can take, which is the only case where a mediator is needed.
+In our idea submission the mediator's incentive constraint for EV $i$ compared $Q_i(a_i)$ with $Q_i(a_i')$, and these do not depend on the other EVs. For example take two EVs with 7~kW chargers on a 10~kW transformer, both with $g > 0$, then the constraint for an EV told to wait is $\Pr(\text{told to wait}) \cdot (-g) \ge 0$, so that probability has to be zero, so both have to be told to charge, which is 14~kW and not allowed, so the linear program has no solution. This happens every time more EVs want to charge than the transformer can take.
 
 \subsection{Payoff with the overload penalty}
 
@@ -184,11 +184,11 @@ Defector $i$ pays its Shapley value
 \phi_{i,t} = \sum_{S \subseteq D_t \setminus \{i\}} \frac{|S|!\,(|D_t| - |S| - 1)!}{|D_t|!}\,\bigl[c_t(S \cup \{i\}) - c_t(S)\bigr],
 \label{eq:shapley}
 \end{equation}
-and every other EV pays zero, including an EV that was told to charge and waited. The shares add up to $c_t(D_t)$. If the other EVs follow their recommendations exactly, $B_t = L(a^*_{-i,t})$, and a lone defector pays $c_t(\{i\}) = \rho_i$ from \eqref{eq:single}. So the simulator charges the same amount the mediator assumed.
+and every other EV pays zero, also an EV that was told to charge and waited. The shares add up to $c_t(D_t)$. If the other EVs follow their recommendations exactly then $B_t = L(a^*_{-i,t})$, and a lone defector pays $c_t(\{i\}) = \rho_i$ from \eqref{eq:single}, which is the same amount the mediator used in its constraint.
 
-\paragraph{Why the Shapley share protects the mediator.} The obedience constraint \eqref{eq:off} only considers one EV deviating while the rest obey. If several EVs deviate together and share the penalty, each might pay less than it would alone, and the reason to obey would weaken. This does not happen with \eqref{eq:shapley}. The cost $c_t(S)$ depends only on the total power of $S$, and $f$ is convex, so the marginal cost of adding EV $i$ to a group grows as the group grows. The smallest marginal cost is the one where $i$ comes first, which is $c_t(\{i\})$. The Shapley value is a weighted average of marginal costs that are all at least $c_t(\{i\})$, so $\phi_{i,t} \ge c_t(\{i\})$. The same argument applied to a group $S$ gives $\sum_{i \in S} \phi_{i,t} \ge c_t(S)$: no group of defectors pays less than the penalty it would have caused by itself.
+\paragraph{Why the Shapley share protects the mediator.} The obedience constraint \eqref{eq:off} only looks at one EV deviating while the rest obey. If several EVs deviate together and share the penalty, each one could pay less than it would alone, and then deviating together could be worth it. With \eqref{eq:shapley} this cannot happen: $c_t(S)$ depends only on the total power of $S$ and $f$ is convex, so the extra cost of adding EV $i$ to a group grows as the group grows, and the smallest extra cost is when $i$ comes first, which is $c_t(\{i\})$. The Shapley value is a weighted average of these extra costs, so $\phi_{i,t} \ge c_t(\{i\})$, and in the same way $\sum_{i \in S} \phi_{i,t} \ge c_t(S)$ for any group $S$ (no group of defectors pays less than the penalty it would cause by itself).
 
-To connect this to \eqref{eq:off}, suppose the EVs told to charge do charge. Then $c_t(\{i\}) = \rho_i$, and $\phi_{i,t} \ge \rho_i$ holds whichever other EVs also defect. Constraint \eqref{eq:off} is an average over the recommendations the others receive, so taking the same average gives an expected payment at least as large as the one in \eqref{eq:off}. If $\lambda$ makes a lone deviation unprofitable in that sense, deviating alongside others is unprofitable too. The bound does not cover EVs told to charge that wait: they lower $B_t$, and a defector can then pay less than $\rho_i$. In that case the defector is using capacity that someone else left free.
+To connect this to \eqref{eq:off}, suppose the EVs told to charge do charge, then $c_t(\{i\}) = \rho_i$ and $\phi_{i,t} \ge \rho_i$ whichever other EVs also defect. Constraint \eqref{eq:off} is an average over the recommendations the others get, so taking the same average the expected payment is at least the one in \eqref{eq:off}, so if $\lambda$ makes deviating alone not worth it, deviating together is also not worth it. This does not cover EVs told to charge that wait, because they lower $B_t$ and then a defector can pay less than $\rho_i$ (it is using capacity that the waiting EV left free).
 
 \paragraph{Computing it.} Each subset of the $d$ defectors is a $d$-bit mask, as for the mediator's profiles. We compute $c_t$ for all $2^d$ masks from their total power and then sum \eqref{eq:shapley} for each defector, $d \cdot 2^d$ steps in all (about 0.8~ms for $d = 12$). The tests compare it with a slow version that averages over all $d!$ orderings.
 
@@ -209,9 +209,9 @@ We ran all five policies on $N \in \{4, 8, 12\}$ EVs with $\cmax = 20$~kW, $\lam
 
 Table~\ref{tab:policy} shows the mean over seeds. The mediator never overloaded the transformer, and neither did the urgency baseline, which also respects $\cmax$. The three policies that ignore the limit overloaded it in 6 to 21 slots per night.
 
-The cost of that safety depends on how crowded the night is. With 4 EVs the mediator got 88\% of cars to their target, close to the 89--94\% of the other policies. With 8 EVs it got 58\%, below the urgency baseline (74\%), which charges in the expensive evening whenever a car is short of time. With 12 EVs it got 26\%, well above the urgency baseline (9\%); neither safe policy can serve 12 cars on 20~kW. The policies that reach 95\% only do so by overloading the transformer in 14 to 20 slots per night. The mediator's incentive constraint was not always met at $\lambda = 5$: $\varepsilon^\star > 0$ in about 21 slots per night with 8 EVs and 34 with 12, mostly near departure, when an urgent car's gain from charging is larger than the penalty for a small overshoot.
+How many cars reach their target depends on how crowded the night is. With 4 EVs the mediator got 88\% of cars to their target, close to the 89--94\% of the other policies, with 8 EVs it got 58\%, below the urgency baseline (74\%) which charges in the expensive evening when a car is short of time, and with 12 EVs it got 26\% against 9\% for urgency (neither safe policy can serve 12 cars on 20~kW). The policies that reach 95\% do it by overloading the transformer in 14 to 20 slots per night. Also the incentive constraint was not always met at $\lambda = 5$, $\varepsilon^\star > 0$ in about 21 slots per night with 8 EVs and 34 with 12, mostly near departure, when an urgent car's gain from charging is more than the penalty for a small overshoot.
 
-The share $\alpha_t$ in the EVs' plans matters here. Without it, every EV planned to wait for the cheap 22:00--06:00 block, so before 22:00 most of them had $g_{i,t} < 0$ and the mediator, which respects that, left the transformer nearly idle. With $\alpha_t$ the EVs that are short of time start in the evening.
+Under the mediator each EV plans with $\alpha_t$ (Section~\ref{sec:prelim-alpha}), so an EV that is short of time sees that waiting for the cheap 22:00--06:00 block is risky and asks to charge in the evening, and the baselines plan with $\alpha_t = 1$.
 
 \begin{table}[!htb]
 \centering
@@ -232,7 +232,7 @@ Figure~\ref{fig:load-profile} shows the load over one night for charge-on-arriva
 \subsection{Effect of a tighter transformer limit}
 \label{sec:res-cmax}
 
-Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per night changes as $\cmax$ is tightened from 40~kW down to 10~kW, with $N = 8$ EVs and 30 seeds (\texttt{experiments/run\_cmax\_sweep.py}). The three policies that ignore the limit overload it even at 40~kW (4 to 8 slots per night), and three to four times as often at 10~kW. The mediator and the urgency baseline stay at zero throughout. On target completion, the mediator gets 91\% of cars to their target at 30 and 40~kW and 90\% at 25~kW, against 96\% for charge-on-arrival. At 20, 15 and 10~kW it gets 63\%, 43\% and 29\%. The urgency baseline does better at 20~kW (81\%) but worse at 15 and 10~kW (37\% and 15\%). So the mediator keeps the transformer safe at every limit, and gets most cars charged as long as the limit is not far below the cars' combined demand.
+Figure~\ref{fig:overload-cmax} shows the mean number of overloaded slots per night as we lower $\cmax$ from 40~kW to 10~kW, with $N = 8$ EVs and 30 seeds (\texttt{experiments/run\_cmax\_sweep.py}). The three policies that ignore the limit overload it even at 40~kW (4 to 8 slots per night) and three to four times more at 10~kW, and the mediator and the urgency baseline stay at zero. For target completion the mediator gets 91\% of cars to their target at 30 and 40~kW and 90\% at 25~kW (charge-on-arrival gets 96\%), and at 20, 15 and 10~kW it gets 63\%, 43\% and 29\%. The urgency baseline gets 81\% at 20~kW but 37\% and 15\% at 15 and 10~kW.
 
 \begin{figure}[!htb]
 \centering
@@ -265,7 +265,7 @@ To compare split rules we only need slots where someone disobeys, so we generate
 \resizebox{\textwidth}{!}{\reptab{penalty_rules_table.tex}}
 \end{table}
 
-Under the equal split a small charger pays the same as a big one: in full slots 3.3~kW cars pay about 124~Rs per kW and 11~kW cars about 82. Some defector paid less than $c(\{i\})$ in 12\% of full slots and 7\% of slots with spare capacity, which is exactly where the guarantee of Section~\ref{sec:shapley} is lost. Shapley never did this. Proportional split never did either, for the same convexity reason. In full slots it is almost the same as Shapley (0.4\% of the penalty moves on average), but with spare capacity the gap is 2.4\% on average and up to 29\% in one slot. The difference is in the 21\% of defectors who would be harmless alone: proportional split charges them by kW, while Shapley charges them for the extra overload they add once others are charging, which is the question of who caused how much. All percentages in the table hold for any $\lambda > 0$, because every cost scales with $\lambda$.
+With the equal split a small charger pays the same as a big one, for example in full slots 3.3~kW cars pay about 124~Rs per kW and 11~kW cars about 82. Some defector paid less than $c(\{i\})$ in 12\% of full slots and 7\% of slots with spare capacity, and in those slots the guarantee of Section~\ref{sec:shapley} does not hold. With Shapley and with the proportional split this never happened (the proportional split passes for the same convexity reason). In full slots proportional is almost the same as Shapley (0.4\% of the penalty moves on average), but with spare capacity the gap is 2.4\% on average and up to 29\% in one slot. The gap comes from the 21\% of defectors who would be harmless alone (they fit in the spare room), proportional split charges them by kW and Shapley charges them for the extra overload they add when the others are also charging. All percentages in the table are the same for any $\lambda > 0$ because every cost is multiplied by $\lambda$.
 
 \subsection{Equilibrium incentive gap and mediator scalability}
 \label{sec:res-mediator}
@@ -281,7 +281,7 @@ We evaluated the mediator across penalty weights $\lambda$ and fleet sizes $N \i
 
 Figure~\ref{fig:eps-lambda} shows the effect of $\lambda$ on synthetic slots. At $\lambda = 0$ no slot has an exact equilibrium: the mean gap $\varepsilon^\star$ is 6.20~Rs for $N=4$, 3.06 for $N=8$ and 3.48 for $N=12$. It falls quickly as $\lambda$ grows. For $N=8$ every slot has $\varepsilon^\star = 0$ from $\lambda = 1$, and for $N=12$ from $\lambda = 1.5$. For $N=4$ it reaches 96\% at $\lambda = 5.5$; the rest are slots where the left-out EV overshoots by only about 0.3~kW, so $\lambda$ would have to be near 60.
 
-For the solve time we timed the three-phase linear program for $N$ from 2 to 12 (\texttt{results/mediator\_runtime.csv}). Removing profiles with $L(a) > \cmax$ drops about half of them: for $N=12$, 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$. A 15-minute slot leaves plenty of room at this size. The code refuses more than 16 EVs, where exact enumeration stops being practical.
+For the solve time we timed the three-phase linear program for $N$ from 2 to 12 (\texttt{results/mediator\_runtime.csv}). Removing profiles with $L(a) > \cmax$ drops about half of them, for $N=12$ 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$, which is small compared to a 15-minute slot, and the code refuses more than 16 EVs because exact enumeration gets too slow.
 
 \section{Assumptions and limitations}
 \label{sec:limits}

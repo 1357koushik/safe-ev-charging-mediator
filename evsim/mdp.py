@@ -62,12 +62,25 @@ def solve_q(
     soc: float,
     t: int,
     price: np.ndarray,
+    *,
+    avail: float = 1.0,
 ) -> tuple[float, float]:
-    """Return (Q_OFF, Q_ON) using backward dynamic programming."""
+    """Return (Q_OFF, Q_ON) using backward dynamic programming.
+
+    ``avail`` is the chance that a request to charge in a future slot is
+    granted. With ``avail = 1`` the EV plans as if it could charge whenever
+    it likes. With ``avail < 1`` it expects to be told to wait some of the
+    time, so a car with little slack starts charging earlier instead of
+    counting on the cheap slots at the end. The current slot is not
+    affected: Q_ON and Q_OFF compare the two actions now.
+    """
 
     # Validate EV parameters and current SoC.
     _validate_ev(ev)
     _validate_soc(soc)
+    avail = float(avail)
+    if not np.isfinite(avail) or not 0.0 < avail <= 1.0:
+        raise ValueError("avail must be in (0, 1]")
 
     # Validate the current time slot.
     if t < ev.arrive_slot or t >= ev.depart_slot:
@@ -101,7 +114,11 @@ def solve_q(
         reward_on = -ev.p_rated_kw * DT_H * price[current_t]
         q_on = reward_on + GAMMA * value(soc_on, current_t + 1)
 
-        return max(q_off, q_on)
+        if q_on <= q_off:
+            return q_off
+        # Asking to charge is granted with probability avail; otherwise the
+        # EV waits this slot.
+        return avail * q_on + (1.0 - avail) * q_off
 
     # Calculate the Q-values for the two possible current actions.
     q_off = GAMMA * value(step_soc(ev, soc, OFF), t + 1)

@@ -101,9 +101,17 @@ def run(
         k_left_arr = np.zeros(n, dtype=int)
         k_req_arr = np.zeros(n, dtype=int)
 
+        # Share of the connected EVs' total rating the transformer can carry.
+        # The mediator announces it, and each EV plans with it as the chance
+        # that a future request to charge is granted.
+        demand_kw = float(p_rated[connected].sum())
+        avail = min(1.0, c_max / demand_kw) if demand_kw > 0 else 1.0
+        if policy != "ce_mediator":
+            avail = 1.0        # baselines keep the plain local plan
+
         for i, ev in enumerate(evs):
             if connected[i]:
-                q[i, 0], q[i, 1] = solve_q(ev, soc[i], t, price)
+                q[i, 0], q[i, 1] = solve_q(ev, soc[i], t, price, avail=avail)
                 k_left_arr[i] = ev.depart_slot - t
                 k_req_arr[i] = k_req(ev, soc[i])
 

@@ -135,3 +135,36 @@ def test_infeasible_deadline_still_prefers_charging(ev):
     )
 
     assert q_on > q_off
+
+
+def test_avail_one_matches_plain_plan():
+    from evsim.common import EVParams
+    from evsim.mdp import solve_q
+    import numpy as np
+    ev = EVParams(0, 50.0, 7.0, 0.9, 0.8, 0, 40)
+    price = np.array([8.0] * 16 + [5.0] * 36)
+    assert solve_q(ev, 0.3, 2, price) == solve_q(ev, 0.3, 2, price, avail=1.0)
+
+
+def test_lower_avail_makes_a_tight_ev_want_to_charge_earlier():
+    """With little slack, an EV that expects to be told to wait sometimes
+    should value charging in the expensive evening more."""
+    from evsim.common import EVParams
+    from evsim.mdp import solve_q
+    import numpy as np
+    ev = EVParams(0, 60.0, 3.3, 0.9, 0.9, 0, 44)
+    price = np.array([8.0] * 16 + [5.0] * 36)
+    g_full = np.subtract(*solve_q(ev, 0.3, 4, price)[::-1])
+    g_half = np.subtract(*solve_q(ev, 0.3, 4, price, avail=0.5)[::-1])
+    assert g_half > g_full
+
+
+def test_avail_must_be_a_probability():
+    import pytest
+    from evsim.common import EVParams
+    from evsim.mdp import solve_q
+    import numpy as np
+    ev = EVParams(0, 50.0, 7.0, 0.9, 0.8, 0, 40)
+    for bad in (0.0, -0.1, 1.5, float("nan")):
+        with pytest.raises(ValueError):
+            solve_q(ev, 0.3, 2, np.full(52, 5.0), avail=bad)

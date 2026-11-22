@@ -154,7 +154,7 @@ Constraint \eqref{eq:on} says an EV told to charge should not prefer to wait. Co
 
 \subsection{Solving the LP}
 
-We solve the LP twice. The first solve minimises $\varepsilon$. If the result is zero, an exact equilibrium on safe profiles exists. If it is positive, $\lambda$ is too small for some EV and $\varepsilon^\star$ measures how much that EV would gain by disobeying. The second solve keeps $\varepsilon$ at $\varepsilon^\star$ and maximises the total reported value. With the slack the LP always has a solution, since recommending that everyone waits is safe and satisfies the constraints for a large enough $\varepsilon$.
+We solve the LP three times. The first solve minimises $\varepsilon$. If the result is zero, an exact equilibrium on safe profiles exists. If it is positive, $\lambda$ is too small for some EV and $\varepsilon^\star$ measures how much that EV would gain by disobeying. The second solve keeps $\varepsilon$ at $\varepsilon^\star$ and maximises the total reported value. With the slack the LP always has a solution, since recommending that everyone waits is safe and satisfies the constraints for a large enough $\varepsilon$.
 
 The third solve keeps the best value and maximises the expected load. At a flat off-peak price an EV often has $g_{i,t} = 0$, and without this step the LP almost always told such EVs to wait, leaving the transformer idle before a crowd of urgent cars near departure. The incentive constraints are unchanged. Only connected EVs enter the LP.
 

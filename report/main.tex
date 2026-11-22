@@ -51,26 +51,7 @@ Uncoordinated home charging overloading local transformers is a known problem \c
 
 \subsection{Inputs and local model}
 
-Time is divided into slots of $\dt = 0.25$ hours. The night has $T = 52$ slots, from 18:00 to 07:00. Table~\ref{tab:inputs} lists what EV $i$ knows at slot $t$.
-
-\begin{table}[!htb]
-\centering
-\caption{Inputs of EV $i$ at slot $t$.}
-\label{tab:inputs}
-\begin{tabular}{llll}
-\toprule
-Quantity & Symbol & Unit & Meaning \\
-\midrule
-State of charge & $\soc_{i,t}$ & $[0,1]$ & battery level now \\
-Battery capacity & $E_i$ & kWh & usable capacity \\
-Charger rating & $P_i$ & kW & power drawn when charging \\
-Slots left & $K_{i,t}$ & integer & slots before departure \\
-Target & $\soc^{\mathrm{tgt}}_i$ & $[0,1]$ & level needed at departure \\
-Efficiency & $\eta_i$ & -- & fraction of energy stored \\
-Price & $c_t$ & Rs/kWh & tariff in slot $t$, known for the night \\
-\bottomrule
-\end{tabular}
-\end{table}
+Time is divided into slots of $\dt = 0.25$ hours. The night has $T = 52$ slots, from 18:00 to 07:00. At slot $t$, EV $i$ knows its state of charge $\soc_{i,t} \in [0,1]$, battery capacity $E_i$ (kWh), charger rating $P_i$ (kW), the number of slots left before departure $K_{i,t}$, its target $\soc^{\mathrm{tgt}}_i$, its charging efficiency $\eta_i$, and the price $c_t$ (Rs/kWh) of every slot of the night.
 
 The state is $s_{i,t} = (\soc_{i,t}, K_{i,t})$ and the action is $a_{i,t} \in \{0,1\}$, where 1 means charging at $P_i$. One slot changes the state as
 \begin{align}
@@ -215,7 +196,7 @@ and every other EV pays zero, including an EV that was told to charge and waited
 
 To connect this to \eqref{eq:off}, suppose the EVs told to charge do charge. Then $c_t(\{i\}) = \rho_i$, and $\phi_{i,t} \ge \rho_i$ holds whichever other EVs also defect. Constraint \eqref{eq:off} is an average over the recommendations the others receive, so taking the same average gives an expected payment at least as large as the one in \eqref{eq:off}. If $\lambda$ makes a lone deviation unprofitable in that sense, deviating alongside others is unprofitable too. The bound does not cover EVs told to charge that wait: they lower $B_t$, and a defector can then pay less than $\rho_i$. In that case the defector is using capacity that someone else left free.
 
-\paragraph{Computing it.} The defectors are numbered $0,\dots,d-1$ and each subset is stored as a $d$-bit mask, the same convention the mediator uses for joint profiles. We first compute $c_t$ for all $2^d$ masks from their total power, then evaluate \eqref{eq:shapley} for each defector by summing over the masks that do not contain it. This takes $d \cdot 2^d$ steps, about $5 \times 10^4$ for $d = 12$, which took about 0.8~ms in our implementation. The tests compare it with a slow version that averages marginal costs over all $d!$ orderings.
+\paragraph{Computing it.} Each subset of the $d$ defectors is a $d$-bit mask, as for the mediator's profiles. We compute $c_t$ for all $2^d$ masks from their total power and then sum \eqref{eq:shapley} for each defector, $d \cdot 2^d$ steps in all (about 0.8~ms for $d = 12$). The tests compare it with a slow version that averages over all $d!$ orderings.
 
 For comparison we also split $c_t(D_t)$ equally among the defectors, and in proportion to $P_i$. All three rules divide the same amount, so only the split differs.
 
@@ -302,7 +283,7 @@ We evaluated the mediator across penalty weights $\lambda$ and fleet sizes $N \i
 
 \begin{figure}[!htb]
 \centering
-\repfig{width=0.72\textwidth}{mediator_eps_lambda.pdf}
+\repfig{width=0.6\textwidth}{mediator_eps_lambda.pdf}
 \caption{Incentive gap and equilibrium existence against $\lambda$. Left: mean slack $\varepsilon^\star$. Right: percentage of slots with an exact correlated equilibrium ($\varepsilon^\star = 0$).}
 \label{fig:eps-lambda}
 \end{figure}
@@ -328,8 +309,8 @@ Member & Assigned task & Fulfilled \\
 \midrule
 Busa Bhava Ram (24110083) & Local EV model, feasibility check, scenario generator, tests & Yes \\
 Muppala Harshith (24110213) & Mediator LP, recommendation sampler, $\lambda$ and runtime experiments & Yes \\
-Moram Raghavendra Sri Koushik (24110210) & Overload and penalty module, Shapley split, comparison of penalty rules, defection-rate experiment; final integration check and fixes (third LP phase, connected-EV handling, baselines (i) and (ii) matched to the plan, target-completion columns) & Yes \\
-Sura Sravan Kumar (24110362) & Simulator loop (\texttt{evsim/sim.py}), four baseline policies (\texttt{evsim/baselines.py}), policy-comparison and C\textsubscript{max}-sweep experiment scripts, \texttt{make\_figures.py}, \texttt{run\_all.py}, 18 unit tests, README & Yes \\
+Moram Raghavendra Sri Koushik (24110210) & Penalty module and Shapley split, penalty and sensitivity experiments, final integration fixes ($\alpha_t$ plans, third LP phase, baselines, target columns) & Yes \\
+Sura Sravan Kumar (24110362) & Simulator, baseline policies, policy and $\cmax$ experiments, figures, \texttt{run\_all}, README & Yes \\
 \bottomrule
 \end{tabularx}
 \end{table}

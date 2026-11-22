@@ -140,6 +140,10 @@ All images are in `docs/screenshots/` and are copied from `report/figures/`, whi
 
 ![Defection rate](docs/screenshots/defection_rate.png)
 
+**pytests**
+
+![Tests passing](docs/screenshots/pytest_pass.png)
+
 ---
 
 ## Repository link

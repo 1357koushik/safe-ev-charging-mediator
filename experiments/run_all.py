@@ -39,6 +39,7 @@ def main() -> None:
     # 2. Sravan's experiments
     _run("Policy comparison (N=4,8,12)", "experiments.run_policy_comparison")
     _run("C_max sweep", "experiments.run_cmax_sweep")
+    _run("Sensitivity: tariff, charger mix, defection", "experiments.run_sensitivity")
 
     # 3. All figures
     _run("Make figures (penalty)", "experiments.figures_penalty")

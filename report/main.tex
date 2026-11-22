@@ -57,7 +57,7 @@ The state is $s_{i,t} = (\soc_{i,t}, K_{i,t})$ and the action is $a_{i,t} \in \{
 \soc_{i,t+1} &= \min\Bigl\{1,\; \soc_{i,t} + \frac{\eta_i\, a_{i,t}\, P_i\, \dt}{E_i}\Bigr\}, \\
 K_{i,t+1} &= K_{i,t} - 1.
 \end{align}
-The transitions have no randomness, so the local problem is a deterministic dynamic program. We keep the MDP notation because the reward and value definitions are the same.
+The transitions have no randomness, so the local problem is a deterministic dynamic program.
 
 \subsection{Reward and Q-values}
 
@@ -164,7 +164,6 @@ Let $W$ be the set of EVs with $g_{i,t} > 0$. Choose a subset $S \subseteq W$ th
 \begin{equation}
 \lambda \;\ge\; \max_{j \in W \setminus S} \frac{g_{j,t}}{\delta_j^{2}} .
 \end{equation}
-In the two-EV example, $\delta = 4$~kW, so the condition is $16\lambda \ge g$, and the mediator can recommend (charge, wait) and (wait, charge) with probability $1/2$ each.
 
 \subsection{Splitting the penalty among several defectors}
 \label{sec:shapley}
@@ -203,12 +202,10 @@ In the simulator, an EV that is told to wait while $g_{i,t} > 0$ charges anyway 
 
 \section{Results}
 
-Every figure and table in this section is written by a script in \texttt{experiments/} from a fixed seed. Running \texttt{python -m experiments.run\_all} from the repository root regenerates all results. The README maps each item to its script and CSV file.
-
 \subsection{Policy comparison}
 \label{sec:res-policies}
 
-We ran all five policies on $N \in \{4, 8, 12\}$ EVs with $\cmax = 20$~kW, $\lambda = 5$~Rs/kW$^2$, and zero defection across 30 seeds (seeds 2225--2254, \texttt{experiments/run\_policy\_comparison.py}). EVs are drawn from charger ratings $\{3.3, 7.0, 11.0\}$~kW, battery sizes $\{40, 50, 60\}$~kWh, initial SoC in $[0.20, 0.60)$, target SoC in $[0.70, 0.90)$, arriving between 18:00--20:00 and departing between 03:00--07:00.
+We ran all five policies on $N \in \{4, 8, 12\}$ EVs with $\cmax = 20$~kW, $\lambda = 5$~Rs/kW$^2$, and zero defection across 30 seeds (seeds 2225--2254, \texttt{experiments/run\_policy\_comparison.py}; \texttt{python -m experiments.run\_all} regenerates every table and figure). EVs are drawn from charger ratings $\{3.3, 7.0, 11.0\}$~kW, battery sizes $\{40, 50, 60\}$~kWh, initial SoC in $[0.20, 0.60)$, target SoC in $[0.70, 0.90)$, arriving between 18:00--20:00 and departing between 03:00--07:00.
 
 Table~\ref{tab:policy} shows the mean over seeds. The mediator never overloaded the transformer, and neither did the urgency baseline, which also respects $\cmax$. The three policies that ignore the limit overloaded it in 6 to 21 slots per night.
 
@@ -310,7 +307,7 @@ Member & Assigned task & Fulfilled \\
 \midrule
 Busa Bhava Ram (24110083) & Local EV model, feasibility check, scenario generator, tests & Yes \\
 Muppala Harshith (24110213) & Mediator LP, recommendation sampler, $\lambda$ and runtime experiments & Yes \\
-Moram Raghavendra Sri Koushik (24110210) & Penalty module and Shapley split, penalty and sensitivity experiments, final integration fixes ($\alpha_t$ plans, third LP phase, baselines, target columns) & Yes \\
+Moram Raghavendra Sri Koushik (24110210) & Penalty module, Shapley split, penalty and sensitivity experiments, integration fixes & Yes \\
 Sura Sravan Kumar (24110362) & Simulator, baseline policies, policy and $\cmax$ experiments, figures, \texttt{run\_all}, README & Yes \\
 \bottomrule
 \end{tabularx}

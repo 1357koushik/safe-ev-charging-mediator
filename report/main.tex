@@ -236,7 +236,7 @@ Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per
 
 \begin{figure}[!htb]
 \centering
-\repfig{width=0.62\textwidth}{overload_vs_cmax.pdf}
+\repfig{width=0.52\textwidth}{overload_vs_cmax.pdf}
 \caption{Mean overloaded slots per night against $\cmax$, $N = 8$, 30 seeds. The mediator and the urgency baseline stay at zero; the three policies that ignore the limit overload more as it tightens.}
 \label{fig:overload-cmax}
 \end{figure}
@@ -244,7 +244,7 @@ Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per
 \subsection{Tariff, charger mix and defection}
 \label{sec:res-sensitivity}
 
-Table~\ref{tab:sensitivity} changes one thing at a time for the mediator with 8 EVs on 20~kW, over 10 seeds (\texttt{experiments/run\_sensitivity.py}). A flat tariff raises target completion from 64\% to 76\%: with no cheap block there is less reason for every EV to wait for the same slots. Making every charger 7~kW lowers it to 23\%. With mixed ratings a 3.3~kW car can often fill the gap left between larger ones, and with equal ratings that gap stays empty. When EVs ignore recommendations, the transformer is overloaded in 11 slots per night at a defection rate of 0.1 and 18 at 0.3. The defectors reach their targets more often, but they pay Shapley penalties of 2.4 and 9.6 times the whole electricity bill.
+Table~\ref{tab:sensitivity} changes one thing at a time for the mediator with 8 EVs on 20~kW, over 10 seeds (\texttt{experiments/run\_sensitivity.py}). A flat tariff raises target completion from 64\% to 76\%: with no cheap block there is less reason for every EV to wait for the same slots. Making every charger 7~kW lowers it to 23\%. When EVs ignore recommendations, the transformer is overloaded in 11 slots per night at a defection rate of 0.1 and 18 at 0.3. The defectors reach their targets more often, but they pay Shapley penalties of 2.4 and 9.6 times the whole electricity bill.
 
 \begin{table}[!htb]
 \centering

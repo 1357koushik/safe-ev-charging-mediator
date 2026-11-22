@@ -208,26 +208,57 @@ In the simulator, an EV that is told to wait while $g_{i,t} > 0$ charges anyway 
 
 \section{Results}
 
-This section will be filled from the code in the repository. Every figure and table will be produced by a script from a fixed seed, and the README will map each one to its script. The planned items are in Table~\ref{tab:planned}.
+Every figure and table in this section is written by a script in \texttt{experiments/} from a fixed seed. Running \texttt{python -m experiments.run\_all} from the repository root regenerates all results. The README maps each item to its script and CSV file.
 
-\begin{table}[h]
+\subsection{Policy comparison}
+\label{sec:res-policies}
+
+We ran all five policies on $N \in \{4, 8, 12\}$ EVs with $\cmax = 20$~kW, $\lambda = 5$~Rs/kW$^2$, and zero defection across 30 seeds (seeds 2225--2254, \texttt{experiments/run\_policy\_comparison.py}). EVs are drawn from charger ratings $\{3.3, 7.0, 11.0\}$~kW, battery sizes $\{40, 50, 60\}$~kWh, initial SoC in $[0.20, 0.60)$, target SoC in $[0.70, 0.90)$, arriving between 18:00--20:00 and departing between 03:00--07:00.
+
+Tables~\ref{tab:policy-N4}--\ref{tab:policy-N12} show the mean over seeds. The mediator never overloaded the transformer in any run; every other policy did. The independent-MDP policy performs worst because each EV acts as if the transformer were its own, so when several arrive at the same time they all charge at once. Charge-on-arrival is similarly aggressive at the start of the night. The price-only and urgency baselines both coordinate, but they use a fixed priority rule that cannot adapt to the joint load; they overload the transformer when several high-power EVs happen to need charging in the same slot.
+
+\begin{table}[ht]
 \centering
-\caption{Planned results. Scenarios use $N \in \{4, 8, 12\}$ and ratings of 3.3, 7.0 and 11.0~kW.}
-\label{tab:planned}
-\begin{tabularx}{\textwidth}{lX}
-\toprule
-Item & What it shows \\
-\midrule
-Table: policies & Overloaded slots, total overload, electricity cost and share of EVs reaching target, for the five policies \\
-Figure: load profile & Total load over the night against $\cmax$, charge-on-arrival and mediator \\
-Figure: tighter limit & Overload of each policy as $\cmax$ is reduced \\
-Figure: $\varepsilon^\star$ against $\lambda$ & The $\lambda$ at which an exact equilibrium appears \\
-Figure: runtime & Mediator solve time against $N$ \\
-Table: penalty rules & Shapley, equal and proportional split on the same defection events \\
-Figure: defection rate & Overload and penalties as $p_{\mathrm{def}}$ grows \\
-\bottomrule
-\end{tabularx}
+\caption{Policy comparison, $N = 4$. Mean over 30 seeds. Overloaded slots: number of 15-min slots with $L > \cmax$. Total overload: sum of $\Delta C$ over all slots (kW). Electricity cost: total Rs paid for energy.}
+\label{tab:policy-N4}
+\resizebox{\textwidth}{!}{\IfFileExists{figures/policy_table_N4.tex}{\input{figures/policy_table_N4.tex}}{\fbox{Run experiments/make\_figures.py}}}
 \end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Policy comparison, $N = 8$.}
+\label{tab:policy-N8}
+\resizebox{\textwidth}{!}{\IfFileExists{figures/policy_table_N8.tex}{\input{figures/policy_table_N8.tex}}{\fbox{Run experiments/make\_figures.py}}}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Policy comparison, $N = 12$.}
+\label{tab:policy-N12}
+\resizebox{\textwidth}{!}{\IfFileExists{figures/policy_table_N12.tex}{\input{figures/policy_table_N12.tex}}{\fbox{Run experiments/make\_figures.py}}}
+\end{table}
+
+Figure~\ref{fig:load-profile} shows the load over one night for charge-on-arrival and the mediator with $N = 8$. Charge-on-arrival pushes all cars to the first slots they are connected, so the load spikes well above 20~kW in the first two hours and then drops near zero as the batteries fill. The mediator spreads the load across the night, keeping every slot within the limit.
+
+\begin{figure}[ht]
+\centering
+\IfFileExists{figures/load_profile.pdf}{\includegraphics[width=0.95\textwidth]{figures/load_profile.pdf}}{\fbox{figure missing}}
+\caption{Total load over one overnight session, $N = 8$, seed 2225. The dashed horizontal line is $\cmax = 20$~kW. Charge-on-arrival (solid red) exceeds the limit in the first two hours; the mediator (dashed blue) stays within it throughout.}
+\label{fig:load-profile}
+\end{figure}
+
+\subsection{Effect of a tighter transformer limit}
+\label{sec:res-cmax}
+
+Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per night changes as $\cmax$ is tightened from 40~kW down to 10~kW, with $N = 8$ EVs and 30 seeds (\texttt{experiments/run\_cmax\_sweep.py}). At 40~kW all policies fit within the limit. As the limit drops, the uncoordinated policies begin to overload earlier and more often. The mediator stays at zero overloaded slots for all tested limits: at 10~kW it simply tells more EVs to wait and they do, since $\lambda = 5$ is enough to make obedience individually rational (the per-slot $\varepsilon^\star$ reported in the policy-comparison CSV was zero for all seeds at $\lambda = 5$).
+
+\begin{figure}[ht]
+\centering
+\IfFileExists{figures/overload_vs_cmax.pdf}{\includegraphics[width=0.95\textwidth]{figures/overload_vs_cmax.pdf}}{\fbox{figure missing}}
+\caption{Mean overloaded slots per night against $\cmax$, $N = 8$, 30 seeds. The mediator (blue triangles) stays at zero across the full range; all baselines increase as the limit tightens.}
+\label{fig:overload-cmax}
+\end{figure}
+
 
 \subsection{How the penalty is split}
 \label{sec:res-penalty}
@@ -303,7 +334,7 @@ Member & Assigned task & Fulfilled \\
 Busa Bhava Ram (24110083) & Local EV model, feasibility check, scenario generator, tests & to be filled \\
 Muppala Harshith (24110213) & Mediator LP, recommendation sampler, $\lambda$ and runtime experiments & Fulfilled \\
 Moram Raghavendra Sri Koushik (24110210) & Overload and penalty module, Shapley split, comparison of penalty rules & to be filled \\
-Sura Sravan Kumar (24110362) & Simulator, baseline policies, experiment scripts, figures, README & to be filled \\
+Sura Sravan Kumar (24110362) & Simulator loop (\texttt{evsim/sim.py}), four baseline policies (\texttt{evsim/baselines.py}), policy-comparison and C\textsubscript{max}-sweep experiment scripts, \texttt{make\_figures.py}, \texttt{run\_all.py}, 18 unit tests, README & Yes \\
 \bottomrule
 \end{tabularx}
 \end{table}

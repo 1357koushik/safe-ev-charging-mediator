@@ -150,5 +150,10 @@ def make_all(results=RESULTS, out_dir=FIGURES):
     plot_defection_rate(pd.read_csv(results / "defection_rate.csv"), out_dir)
 
 
-if __name__ == "__main__":
+def main():
+    """Entry point used by experiments/run_all.py."""
     make_all()
+
+
+if __name__ == "__main__":
+    main()

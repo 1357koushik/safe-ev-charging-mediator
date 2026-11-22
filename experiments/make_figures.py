@@ -71,6 +71,27 @@ def _ev_summary(df: pd.DataFrame) -> pd.DataFrame:
 
 # ============================================================= policy table ==
 
+def _target_outcomes(sub: pd.DataFrame) -> pd.DataFrame:
+    """Per (policy, seed): % of EVs at or above target when they leave, and
+    the total energy still missing in kWh."""
+    from evsim.mdp import step_soc
+    from evsim.scenarios import make_scenario
+
+    rows = []
+    for (pol, n_ev, c_max, seed), g in sub.groupby(["policy", "n_ev", "c_max_kw", "seed"]):
+        sc = make_scenario(int(n_ev), float(c_max), int(seed))
+        reached, unmet = [], 0.0
+        for ev in sc.evs:
+            last = g[(g["ev_id"] == ev.ev_id) & (g["slot"] == ev.depart_slot - 1)].iloc[0]
+            final = step_soc(ev, float(last["soc_before"]), int(last["act"]))
+            reached.append(final >= ev.soc_target - 1e-9)
+            unmet += max(0.0, ev.soc_target - final) * ev.e_cap_kwh
+        rows.append({"policy": pol, "seed": seed,
+                     "pct_reached": 100.0 * float(np.mean(reached)),
+                     "unmet_kwh": unmet})
+    return pd.DataFrame(rows)
+
+
 def make_policy_table(df: pd.DataFrame, n_ev: int) -> str:
     """Return a LaTeX tabular body for one N value."""
     sub = df[df["n_ev"] == n_ev].copy()
@@ -82,29 +103,16 @@ def make_policy_table(df: pd.DataFrame, n_ev: int) -> str:
         total_overload=("overload_kw", "sum"),
     ).reset_index()
 
-    # EV-level: fraction reaching target SoC
-    # soc_before in last row approximates final SoC (after the last action it won't update)
-    # Use energy balance: total energy_cost_rs / (p_rated * DT_H * price) for SoC
-    # Simpler: flag EV as "reached target" if pen_rs == 0 at departure slot (k_left becomes 0 next)
-    # We'll use: soc_before at the slot where k_left==1 gives us the SoC entering last slot
-    # Best proxy: last soc_before + on-action increment vs soc_target stored in EVParams.
-    # We don't have soc_target in log — use pen_rs==0 at departure as proxy for "reached target"
-    # Actually: an EV that did NOT reach target has a large terminal pen_rs at k_left==1 slot
-    # Cleaner: sum pen_rs per EV per run; if 0, it reached target (no unmet energy)
+    # EV-level: did each EV reach its target? The log has no target column,
+    # so each scenario is rebuilt from (n_ev, c_max_kw, seed), which is
+    # deterministic, and the last action is applied to the last SoC.
     ev_agg = sub.groupby(["policy", "seed", "ev_id"]).agg(
-        total_pen=("pen_rs", "sum"),
         total_ecost=("energy_cost_rs", "sum"),
     ).reset_index()
-    # Compute fraction of EVs with no terminal miss-penalty as a proxy for "target met"
-    # (penalty from unmet energy appears as pen_rs in the last slot only for the defection penalty)
-    # Better: EVs with terminal unmet energy get q_on - q_off blowup near departure — 
-    # use total energy charged: act=1 slots give energy to SoC.
-    # Simplest reliable metric from the log: electricity cost > 0 means it charged.
-    # For "reached target" we need soc >= soc_target. We store soc_before each slot.
-    # Last row for each EV gives soc_before of their last active slot; add one ON action if act=1.
-    ev_last = sub[sub["k_left"] == 1].copy()  # last active slot
-    if ev_last.empty:
-        ev_last = sub.groupby(["run_id", "ev_id"]).last().reset_index()
+    target = _target_outcomes(sub).groupby("policy").agg(
+        pct_reached=("pct_reached", "mean"),
+        unmet_kwh=("unmet_kwh", "mean"),
+    ).reset_index()
 
     # Compute cost and overload stats per policy per seed, then average over seeds
     slot_mean = slot_agg.groupby("policy").agg(
@@ -125,7 +133,10 @@ def make_policy_table(df: pd.DataFrame, n_ev: int) -> str:
         ov_slots = f"{row_s['overloaded_slots'].values[0]:.1f}" if len(row_s) else "--"
         ov_total = f"{row_s['total_overload'].values[0]:.1f}" if len(row_s) else "--"
         ecost = f"{row_e['ecost'].values[0]:.1f}" if len(row_e) else "--"
-        lines.append(f"        {label} & {ov_slots} & {ov_total} & {ecost} \\\\")
+        row_t = target[target["policy"] == pol]
+        reached = f"{row_t['pct_reached'].values[0]:.1f}" if len(row_t) else "--"
+        unmet = f"{row_t['unmet_kwh'].values[0]:.1f}" if len(row_t) else "--"
+        lines.append(f"        {label} & {ov_slots} & {ov_total} & {ecost} & {reached} & {unmet} \\\\")
 
     return "\n".join(lines)
 
@@ -135,9 +146,10 @@ def save_policy_table(df: pd.DataFrame) -> None:
     for n_ev in [4, 8, 12]:
         body = make_policy_table(df, n_ev)
         header = (
-            "\\begin{tabular}{lrrr}\n"
+            "\\begin{tabular}{lrrrrr}\n"
             "\\toprule\n"
-            f"Policy ($N={n_ev}$) & Overloaded slots & Total overload (kW) & Electricity cost (Rs) \\\\\n"
+            f"Policy ($N={n_ev}$) & Overloaded slots & Total overload (kW) & Electricity cost (Rs)"
+            " & EVs at target (\\%) & Unmet energy (kWh) \\\\\n"
             "\\midrule\n"
         )
         footer = "\n\\bottomrule\n\\end{tabular}\n"

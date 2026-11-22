@@ -108,3 +108,15 @@ def test_figures_survive_a_missing_rating_class(tmp_path):
     fp.plot_rs_per_kw(summary, tmp_path / "f")
     fp.write_rules_table(summary, tmp_path / "f")
     assert "--" in (tmp_path / "f" / "penalty_rules_table.tex").read_text()
+
+
+def test_every_step_in_run_all_has_a_main():
+    """run_all.py calls main() on each module; a missing one crashed it."""
+    import importlib
+    import re
+    from pathlib import Path
+    src = Path("experiments/run_all.py").read_text()
+    modules = re.findall(r'"(experiments\.[a-z_]+)"', src)
+    assert len(modules) >= 9
+    for name in modules:
+        assert callable(getattr(importlib.import_module(name), "main", None)), name

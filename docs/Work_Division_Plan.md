@@ -118,7 +118,7 @@ Each person also writes the report section for their own module, in their own wo
 - A joint profile is an integer b from 0 to 2^N - 1. EV i is ON when `(b >> i) & 1` is 1.
 - Slot 0 is 18:00 to 18:15. There are 52 slots. `depart_slot` is the first slot in which the EV is gone, so `k_left = depart_slot - t`.
 - Per-EV vectors are numpy arrays of shape (N,). Q-values are shape (N, 2), column 0 is OFF and column 1 is ON.
-- Randomness: every function that needs it takes a `numpy.random.Generator` argument. Nobody calls `np.random.seed` or the global `np.random` functions. Run seed is `BASE_SEED + run_index`. Run indices already in use: 0 to 5 by `run_penalty_rules.py` and 100 to 132 by `run_defection_rate.py`. Pick a different range for new experiments and add it here.
+- Randomness: every function that needs it takes a `numpy.random.Generator` argument. Nobody calls `np.random.seed` or the global `np.random` functions. Run seed is `BASE_SEED + run_index`. Run indices already in use: 0 to 5 by `run_penalty_rules.py` 100 to 132 by `run_defection_rate.py`, 200 to 229 by the policy comparison, 230 to 259 by the C_max sweep, 300 to 305 by `run_mediator_runtime.py`, and 400 to 409 by `run_sensitivity.py`. Pick a different range for new experiments and add it here.
 - Float comparisons use `EPS`. A profile is safe when `load <= c_max_kw + EPS`.
 - An EV that is not connected in a slot (not yet arrived, or already gone) has `rec = act = 0`. The penalty code cannot tell such an EV from one that waited, so `sim.py` calls `penalty.check_connected(rec, act, connected)` every slot.
 

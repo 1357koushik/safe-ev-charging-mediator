@@ -22,7 +22,6 @@
   Sura Sravan Kumar (24110362) \And Moram Raghavendra Sri Koushik (24110210)
 }
 
-
 % Figures and tables live in figures/ in the repository. Overleaf flattens
 % uploaded folders to figures_<name>, so look in both places.
 \newcommand{\repfig}[2]{\IfFileExists{figures/#2}{\includegraphics[#1]{figures/#2}}{\IfFileExists{figures_#2}{\includegraphics[#1]{figures_#2}}{\fbox{figure \detokenize{#2} missing}}}}
@@ -32,7 +31,7 @@
 \maketitle
 
 \begin{abstract}
-Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. If they all charge when they reach home, the total load can go above the transformer limit. We divide the night into 15-minute slots in which each EV either charges at its rated power or waits. Each EV plans for itself and tells a mediator what waiting and charging are worth to it. The mediator solves a linear program for a correlated recommendation that never exceeds the limit. An EV that is told to wait and charges anyway pays for the overload it causes, and several such EVs share the penalty by the Shapley value, which never charges any of them less than it would pay alone. In simulation the mediator never overloaded the transformer. It got 88\% of cars to their target with 4 EVs on 20~kW, 58\% with 8 and 26\% with 12, while the policies that reach 95\% overload the transformer in 14 to 20 slots a night.
+Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. If they all charge when they reach home, the total load can go above the transformer limit. We divide the night into 15-minute slots in which each EV either charges at its rated power or waits. The mediator solves a linear program for a correlated recommendation that never exceeds the limit. An EV that is told to wait and charges anyway pays for the overload it causes, and several such EVs share the penalty by the Shapley value, which never charges any of them less than it would pay alone. In simulation the mediator never overloaded the transformer. It got 88\% of cars to their target with 4 EVs on 20~kW, 58\% with 8 and 26\% with 12, while the policies that reach 95\% overload the transformer in 14 to 20 slots a night.
 \end{abstract}
 
 \keywords{multi-agent systems \and EV charging \and Markov decision process \and correlated equilibrium \and Shapley value}
@@ -153,15 +152,11 @@ Constraint \eqref{eq:on} says an EV told to charge should not prefer to wait. Co
 \end{algorithmic}
 \end{algorithm}
 
-The Q-values are recomputed every slot from the current state, so a car that was told to wait becomes more urgent in the next slot and its gain $g$ grows.
-
 \subsection{Solving the LP}
 
 We solve the LP twice. The first solve minimises $\varepsilon$. If the result is zero, an exact equilibrium on safe profiles exists. If it is positive, $\lambda$ is too small for some EV and $\varepsilon^\star$ measures how much that EV would gain by disobeying. The second solve keeps $\varepsilon$ at $\varepsilon^\star$ and maximises the total reported value. With the slack the LP always has a solution, since recommending that everyone waits is safe and satisfies the constraints for a large enough $\varepsilon$.
 
 The third solve keeps the best value and maximises the expected load. At a flat off-peak price an EV often has $g_{i,t} = 0$, and without this step the LP almost always told such EVs to wait, leaving the transformer idle before a crowd of urgent cars near departure. The incentive constraints are unchanged. Only connected EVs enter the LP.
-
-For $N = 12$ the LP has 4096 variables and 24 incentive constraints, which a standard solver handles. The count doubles with each extra EV, so we stop at 12.
 
 \subsection{When an exact equilibrium exists}
 
@@ -249,7 +244,6 @@ Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per
 \label{fig:overload-cmax}
 \end{figure}
 
-
 \subsection{Tariff, charger mix and defection}
 \label{sec:res-sensitivity}
 
@@ -290,7 +284,7 @@ We evaluated the mediator across penalty weights $\lambda$ and fleet sizes $N \i
 
 Figure~\ref{fig:eps-lambda} shows the effect of $\lambda$ on synthetic slots. At $\lambda = 0$ no slot has an exact equilibrium: the mean gap $\varepsilon^\star$ is 6.20~Rs for $N=4$, 3.06 for $N=8$ and 3.48 for $N=12$. It falls quickly as $\lambda$ grows. For $N=8$ every slot has $\varepsilon^\star = 0$ from $\lambda = 1$, and for $N=12$ from $\lambda = 1.5$. For $N=4$ it reaches 96\% at $\lambda = 5.5$; the rest are slots where the left-out EV overshoots by only about 0.3~kW, so $\lambda$ would have to be near 60.
 
-For the solve time we timed the three-phase linear program for $N$ from 2 to 12 (\texttt{results/mediator\_runtime.csv}). Removing profiles with $L(a) > \cmax$ drops about half of them: for $N=12$, 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$. Times depend on the machine, but they grow roughly with $2^N$, so each extra EV about doubles the work. A 15-minute slot leaves plenty of room at this size. The code refuses more than 16 EVs, where exact enumeration stops being practical.
+For the solve time we timed the three-phase linear program for $N$ from 2 to 12 (\texttt{results/mediator\_runtime.csv}). Removing profiles with $L(a) > \cmax$ drops about half of them: for $N=12$, 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$. A 15-minute slot leaves plenty of room at this size. The code refuses more than 16 EVs, where exact enumeration stops being practical.
 
 \section{Limitations}
 \label{sec:limits}
@@ -302,7 +296,7 @@ EVs are assumed to report their Q-values truthfully; since only defectors pay, a
 \begin{table}[!htb]
 \centering
 \small
-\caption{Task of each member and whether it was completed.}
+\caption{Task of each member and whether it was completed. Code: \url{https://github.com/1357koushik/safe-ev-charging-mediator}}
 \label{tab:contrib}
 \begin{tabularx}{\textwidth}{lXl}
 \toprule
@@ -315,8 +309,6 @@ Sura Sravan Kumar (24110362) & Simulator, baseline policies, policy and $\cmax$ 
 \bottomrule
 \end{tabularx}
 \end{table}
-
-Code: \url{https://github.com/1357koushik/safe-ev-charging-mediator}
 
 {\small
 \begin{thebibliography}{9}

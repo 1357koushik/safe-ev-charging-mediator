@@ -41,9 +41,9 @@ Several electric vehicles (EVs) in one neighbourhood share a distribution transf
 
 An EV that reaches home at 6 PM and leaves at 7 AM has thirteen hours to get a few hours of charge. The owner only cares that the car is ready and the bill is low, but three 7~kW chargers on a 15~kW transformer cannot all run together.
 
-The agents are the EVs. Each one knows its own battery level, target, charger rating and departure time, and it decides one thing per slot: charge or wait. The transformer is part of the environment. A central mediator sees only what the EVs report and the transformer limit $\cmax$.
+The agents are the EVs. Each knows its own battery level, target, charger rating and departure time, and decides each slot whether to charge or wait. The transformer is part of the environment. A central mediator sees only what the EVs report and the limit $\cmax$.
 
-We ask two questions. First, can a mediator that sends private recommendations keep the load under $\cmax$ and still get the cars charged, compared with simpler policies? Second, when some EVs ignore the recommendation, does a Shapley split of the penalty treat them more sensibly than an equal split?
+We ask whether a mediator that sends private recommendations can keep the load under $\cmax$ and still get the cars charged, compared with simpler policies, and whether a Shapley split of the penalty treats disobeying EVs more sensibly than an equal split.
 
 Uncoordinated home charging overloading local transformers is a known problem \cite{shojaei2023}. The tools we use are from the course: a finite-horizon MDP for each EV, correlated equilibrium \cite{aumann1974} for the mediator, and the Shapley value \cite{shapley1953} for the penalty.
 
@@ -159,7 +159,7 @@ The Q-values are recomputed every slot from the current state, so a car that was
 
 We solve the LP twice. The first solve minimises $\varepsilon$. If the result is zero, an exact equilibrium on safe profiles exists. If it is positive, $\lambda$ is too small for some EV and $\varepsilon^\star$ measures how much that EV would gain by disobeying. The second solve keeps $\varepsilon$ at $\varepsilon^\star$ and maximises the total reported value. With the slack the LP always has a solution, since recommending that everyone waits is safe and satisfies the constraints for a large enough $\varepsilon$.
 
-The third solve was added after we checked whether cars reach their targets. At a flat off-peak price an EV often has $g_{i,t} = 0$: charging now or in a later cheap slot is worth the same to it. The second solve is then indifferent, and in our first runs it almost always told such EVs to wait, leaving the transformer mostly idle before a crowd of urgent cars near departure. Spare capacity in a slot cannot be saved for later, so among the distributions that reach the best value we pick the one with the largest expected load. The incentive constraints are the same, so obedience is unaffected. Only connected EVs enter the LP: an EV that has not arrived or has already left would otherwise take up capacity in the sampled profile.
+The third solve keeps the best value and maximises the expected load. At a flat off-peak price an EV often has $g_{i,t} = 0$, and without this step the LP almost always told such EVs to wait, leaving the transformer idle before a crowd of urgent cars near departure. The incentive constraints are unchanged. Only connected EVs enter the LP.
 
 For $N = 12$ the LP has 4096 variables and 24 incentive constraints, which a standard solver handles. The count doubles with each extra EV, so we stop at 12.
 
@@ -301,6 +301,7 @@ EVs are assumed to report their Q-values truthfully; since only defectors pay, a
 
 \begin{table}[!htb]
 \centering
+\small
 \caption{Task of each member and whether it was completed.}
 \label{tab:contrib}
 \begin{tabularx}{\textwidth}{lXl}
@@ -317,6 +318,7 @@ Sura Sravan Kumar (24110362) & Simulator, baseline policies, policy and $\cmax$ 
 
 Code: \url{https://github.com/1357koushik/safe-ev-charging-mediator}
 
+{\small
 \begin{thebibliography}{9}
 
 \bibitem{aumann1974}
@@ -335,5 +337,6 @@ A.~Shojaeighadikolaei and M.~Hashemi.
 \newblock \emph{arXiv preprint arXiv:2308.12921}, 2023.
 
 \end{thebibliography}
+}
 
 \end{document}

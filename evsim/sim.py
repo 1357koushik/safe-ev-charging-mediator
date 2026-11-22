@@ -113,6 +113,8 @@ def run(
             "k_left": k_left_arr,
             "k_req": k_req_arr,
             "soc": soc.copy(),
+            "t": t,
+            "price": price,
         }
 
         # 4. Get recommendations.
@@ -121,11 +123,21 @@ def run(
         mediator_ms_val = float("nan")
 
         if policy == "ce_mediator":
-            result = mediator_recommend(q, p_rated, c_max, lam, rng)
-            rec = result.rec.copy().astype(np.int64)
-            eps_val = result.eps
-            lp_status = result.status
-            mediator_ms_val = result.runtime_ms
+            # Only connected EVs take part. A disconnected EV passed to the
+            # LP would take up capacity in the sampled profile and inflate
+            # the lone-defection penalty the others are told to fear.
+            rec = np.zeros(n, dtype=np.int64)
+            idx = np.flatnonzero(connected)
+            if idx.size:
+                result = mediator_recommend(q[idx], p_rated[idx], c_max, lam, rng)
+                rec[idx] = result.rec.astype(np.int64)
+                eps_val = result.eps
+                lp_status = result.status
+                mediator_ms_val = result.runtime_ms
+            else:
+                eps_val = 0.0
+                lp_status = "no_ev_connected"
+                mediator_ms_val = 0.0
         else:
             fn = BASELINE_POLICIES[policy]
             rec = fn(q, p_rated, c_max, state, rng).astype(np.int64)

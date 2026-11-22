@@ -13,6 +13,8 @@ The mediator:
 3. Formulates and solves a two-phase LP using scipy.optimize.linprog (method "highs"):
    - Phase 1: Minimise the slack epsilon >= 0 to find the minimum incentive gap.
    - Phase 2: Fix epsilon = epsilon* and maximise expected total reported utility.
+   - Phase 3: Keep that utility and maximise the expected load, so capacity
+     is not left idle when EVs are indifferent between now and later.
 4. Samples a joint recommendation profile from pi using the provided rng.
 5. Returns a MediatorResult containing rec, pi, eps, status, and runtime_ms.
 
@@ -274,6 +276,31 @@ def recommend(
     if res2.success:
         pi_safe = res2.x[:k_safe]
         status = "optimal"
+
+        # Phase 3: among the distributions that reach the phase-2 utility,
+        # pick one that uses as much of the transformer as possible.
+        # Without this, an EV that is indifferent between charging now and
+        # later (g_i = 0, common at a flat off-peak price) is almost always
+        # told to wait. Capacity left unused in a slot is lost for good, and
+        # the local Q-values cannot see that, so cars pile up near departure
+        # and miss their targets. Obedience constraints are unchanged.
+        u_star = float(-res2.fun)
+        tol = 1e-7 * max(1.0, abs(u_star))
+        a_ub3 = np.vstack([a_ub, np.append(-util_safe, 0.0)])
+        b_ub3 = np.append(b_ub, -(u_star - tol))
+        c_phase3 = np.zeros(k_safe + 1, dtype=float)
+        c_phase3[:k_safe] = -loads_safe
+        res3 = linprog(
+            c_phase3,
+            A_ub=a_ub3,
+            b_ub=b_ub3,
+            A_eq=a_eq,
+            b_eq=b_eq,
+            bounds=bounds_phase2,
+            method="highs",
+        )
+        if res3.success:
+            pi_safe = res3.x[:k_safe]
     else:
         # If phase 2 failed, fall back to phase 1 solution
         pi_safe = res1.x[:k_safe]

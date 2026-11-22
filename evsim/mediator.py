@@ -20,6 +20,17 @@ The mediator:
 
 The single-defector penalty uses lone_defection_penalty from evsim.penalty,
 which is the project's single source of truth for the penalty formula.
+
+Assumptions
+-----------
+* The mediator sees only C_max, the ratings of the EVs passed in (the
+  simulator passes connected EVs only) and the Q-value pairs they report. It
+  takes the reports as truthful.
+* The obedience constraint for an EV told to wait assumes the other EVs
+  follow their recommendations; joint deviations are covered by the Shapley
+  split in evsim.penalty, not by the LP.
+* The penalty depends on the recommendation as well as the action, so the
+  result is a correlated equilibrium of the game with that penalty rule.
 """
 
 from __future__ import annotations

@@ -1,6 +1,19 @@
 """Deterministic local EV charging model and finite-horizon value function.
 
 Q-values are utilities (rewards), not costs: a larger Q-value is better.
+
+Assumptions
+-----------
+* Each EV plans alone from its own state, its departure slot and the public
+  price of every slot of the night, which is fixed and known in advance. It
+  cannot see other EVs. Because all EVs see the same prices, they tend to
+  pick the same cheap slots, which is why ``avail`` exists.
+* Charging is all-or-nothing at the rated power, efficiency is constant and
+  the SoC update is deterministic (capped at 1).
+* ``avail`` is treated as the chance a future request to charge is granted,
+  the same for every future slot and independent across slots.
+* Missing energy at departure costs M_UNMET per kWh. Future penalties for
+  disobeying are not part of the plan.
 """
 
 from __future__ import annotations

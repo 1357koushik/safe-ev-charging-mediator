@@ -18,6 +18,11 @@ Conventions (docs/Work_Division_Plan.md, section 3.4):
 * ``lam`` is in Rs per kW^2 and ``lam_lin`` in Rs per kW, so every penalty
   is in Rs.
 
+Assumptions: the penalty is settled slot by slot with no memory; only
+defectors pay; the Shapley bound c({i}) = rho_i assumes the EVs told to
+charge actually charge (if some wait, a defector may pay less, because it is
+using capacity they left free).
+
 The penalty
 -----------
 For an overload x = max(0, L - c_max_kw) in kW the penalty is::

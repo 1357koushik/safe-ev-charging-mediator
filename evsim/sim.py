@@ -8,6 +8,22 @@ The public interface is a single function:
 
 It steps through every slot from 0 to N_SLOTS-1 and returns one row per EV
 per slot with the columns specified in Work_Division_Plan.md section 3.7.
+
+Assumptions (also listed in the report, section "Assumptions and limitations")
+-------------------------------------------------------------------------------
+* Information: an EV sees only its own state, its departure slot and the
+  public price of every slot. It never sees other EVs. Under the mediator it
+  also receives one number per slot, alpha_t = min(1, C_max / total rating of
+  the connected EVs), computed here from what the mediator knows.
+* Planning: each EV recomputes its Q-values every slot. Under the mediator it
+  treats alpha_t as the chance that a future request to charge is granted,
+  the same for every future slot and independent across slots. Baselines plan
+  with alpha_t = 1.
+* Defection is not strategic: an EV told to wait with g > 0 charges anyway
+  with fixed probability defect_rate, whatever the penalty would be.
+* Only defectors pay. An EV told to charge that waits pays nothing. The
+  penalty is settled per slot with no memory across slots.
+* An EV that is not connected has rec = act = 0 and draws nothing.
 """
 
 from __future__ import annotations

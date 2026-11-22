@@ -82,7 +82,7 @@ g_{i,t} = Q_i(s_{i,t},1) - Q_i(s_{i,t},0)
 \end{equation}
 for the gain from charging in this slot instead of waiting.
 
-\paragraph{Planning with a share of the transformer.} The plan above assumes the EV can charge in any future slot it likes. Under the mediator that is not true: when the transformer is crowded, some requests are turned down. If every EV ignores this, they all plan to charge in the cheap overnight block, and on a crowded night they cannot all fit there. So in each slot the mediator announces one number,
+\paragraph{Planning with a share of the transformer.} The plan above assumes the EV can charge in any future slot it likes. Under the mediator that is not true: when the transformer is crowded, some requests are turned down. Each EV plans alone and cannot see the others, but they all see the same prices, so each one independently picks the cheap overnight block. On a crowded night they cannot all fit there. So in each slot the mediator announces one number,
 \begin{equation}
 \alpha_t = \min\Bigl\{1,\; \frac{\cmax}{\sum_{j \text{ connected}} P_j}\Bigr\},
 \end{equation}
@@ -286,10 +286,16 @@ Figure~\ref{fig:eps-lambda} shows the effect of $\lambda$ on synthetic slots. At
 
 For the solve time we timed the three-phase linear program for $N$ from 2 to 12 (\texttt{results/mediator\_runtime.csv}). Removing profiles with $L(a) > \cmax$ drops about half of them: for $N=12$, 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$. A 15-minute slot leaves plenty of room at this size. The code refuses more than 16 EVs, where exact enumeration stops being practical.
 
-\section{Limitations}
+\section{Assumptions and limitations}
 \label{sec:limits}
 
-EVs are assumed to report their Q-values truthfully; since only defectors pay, an EV that overstated its gain to get an ON recommendation would avoid the penalty. The share $\alpha_t$ is a rough forecast that treats every future slot alike, and the mediator still cannot recommend charging to an EV whose own plan says to wait, so on crowded nights some cars miss their target. The penalty depends on the recommendation as well as the action, so the mediator computes a correlated equilibrium of the game with this penalty rule. A small overshoot is cheap under a quadratic penalty (0.45~Rs for 0.3~kW at $\lambda = 5$), which is why $\varepsilon^\star > 0$ near departure. The code supports a linear term, $f(L) = \lambda x^2 + \lambda_1 x$, which keeps $f$ convex so Section~\ref{sec:shapley} still holds; a fixed charge per overload would not be convex. All results use $\lambda_1 = 0$. The model leaves out variable charging power, voltage and three-phase effects, battery ageing and real tariff rules.
+\textbf{What each party knows.} An EV knows only its own state, its departure slot and the price of every slot of the night, which is fixed and public. It does not see other EVs. The mediator knows $\cmax$, the ratings of the connected EVs and the Q-value pairs they report; from these it announces $\alpha_t$. EVs report their Q-values truthfully.
+
+\textbf{How EVs plan.} Each EV treats $\alpha_t$ as the chance that a request to charge is granted, the same for every future slot and independent across slots, and recomputes its plan every slot. Its Q-values leave out future penalties. Charging is all-or-nothing at a fixed rating, efficiency is constant, and an EV that is not connected draws nothing.
+
+\textbf{How EVs disobey.} In the simulator defection is not a strategic choice: an EV told to wait with $g_{i,t} > 0$ charges anyway with a fixed probability $p_{\mathrm{def}}$. Only such defectors pay; an EV told to charge that waits pays nothing. The penalty is settled slot by slot with no memory, and it depends on the recommendation as well as the action, so the mediator computes a correlated equilibrium of the game with this penalty rule.
+
+\textbf{Limitations.} $\alpha_t$ is a rough forecast that does not know which other EVs are urgent, and the mediator cannot recommend charging to an EV whose own plan says to wait, so on crowded nights some cars miss their target. A quadratic penalty makes small overshoots cheap (0.45~Rs for 0.3~kW at $\lambda = 5$), which is why $\varepsilon^\star > 0$ near departure; the code supports a linear term $\lambda_1 x$ that keeps $f$ convex, unlike a fixed charge, but all results use $\lambda_1 = 0$. Since only defectors pay, an EV that overstated its gain to get an ON recommendation would avoid the penalty. Voltage, three-phase effects, battery ageing and real tariff rules are not modelled.
 
 \section{Contributions}
 

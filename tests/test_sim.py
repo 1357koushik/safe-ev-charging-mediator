@@ -146,19 +146,20 @@ class TestBaselines:
             "k_left": np.asarray(k_left if k_left is not None else np.full(n, 10), dtype=int),
             "k_req": np.asarray(k_req if k_req is not None else np.full(n, 5), dtype=int),
             "soc": np.asarray(soc if soc is not None else np.full(n, 0.3), dtype=float),
+            "t": 0,
+            "price": np.full(52, 5.0),
         }
 
     def _rng(self):
         return np.random.default_rng(0)
 
-    def test_immediate_respects_capacity(self):
-        """Immediate policy must not exceed c_max_kw."""
+    def test_immediate_charges_everyone_who_needs_it(self):
+        """Charge-on-arrival ignores the limit but skips EVs at target."""
         p = np.array([7.0, 7.0, 7.0, 7.0])
         q = np.zeros((4, 2))
-        state = self._make_state(4)
+        state = self._make_state(4, k_req=[3, 0, 2, 1])
         rec = recommend_immediate(q, p, 10.0, state, self._rng())
-        assert rec.sum() <= 2  # at most 1 or 2 EVs (7+7=14>10, so at most 1)
-        assert (rec * p).sum() <= 10.0 + 1e-9
+        assert rec.tolist() == [1, 0, 1, 1]
 
     def test_disconnected_always_zero(self):
         """All baseline policies must give 0 to disconnected EVs."""
@@ -197,17 +198,21 @@ class TestBaselines:
         assert rec[1] == 1, "Most urgent EV (index 1) should get rec=1"
         assert (rec * p).sum() <= c_max + 1e-9
 
-    def test_price_only_charges_cheapest_first(self):
-        """Price-only charges EV with highest Q_on (cheapest slot) first."""
-        n = 2
+    def test_price_only_waits_for_cheap_slots(self):
+        """Price-only waits through the expensive slots when it has time."""
         p = np.array([7.0, 7.0])
-        # EV 0 has lower Q_on (more expensive now), EV 1 has higher Q_on (cheaper)
-        q = np.array([[0.0, -5.0], [0.0, -2.0]])
-        state = self._make_state(n, k_req=[3, 3])
-        c_max = 10.0  # only room for one
-        rec = recommend_price_only(q, p, c_max, state, self._rng())
-        assert rec[1] == 1, "EV 1 (higher Q_on = cheaper) should be preferred"
-        assert rec[0] == 0
+        q = np.zeros((2, 2))
+        price = np.array([8.0] * 4 + [5.0] * 48)
+        # EV 0 needs 3 slots and has 10, so it waits for the 5 Rs slots.
+        # EV 1 needs 9 of its 10 slots: the 9th cheapest is 8 Rs, so it
+        # has to start now.
+        state = self._make_state(2, k_req=[3, 9], k_left=[10, 10])
+        state["price"] = price
+        rec = recommend_price_only(q, p, 10.0, state, self._rng())
+        assert rec.tolist() == [0, 1]
+        state["t"] = 4                       # now in the cheap block
+        rec = recommend_price_only(q, p, 10.0, state, self._rng())
+        assert rec.tolist() == [1, 1]        # ignores the 10 kW limit
 
     def test_all_baselines_return_correct_shape(self):
         n = 6

@@ -58,30 +58,40 @@ def _greedy_fill(order: np.ndarray, p_rated_kw: np.ndarray,
 # --------------------------------------------------------------- baselines --
 
 def recommend_immediate(q, p_rated_kw, c_max_kw, state, rng) -> np.ndarray:
-    """Charge on arrival: fill transformer in EV index order (arrival order)."""
-    p = np.asarray(p_rated_kw, dtype=float)
-    n = p.size
+    """Charge on arrival until the target is met (plan baseline i).
+
+    Ignores the transformer limit on purpose: this is the uncoordinated
+    behaviour the mediator is compared against. EVs already at their target
+    do not charge.
+    """
     connected = np.asarray(state["connected"], dtype=bool)
-    order = np.flatnonzero(connected)          # index order = arrival order
-    return _greedy_fill(order, p, c_max_kw)
+    k_req_arr = np.asarray(state["k_req"], dtype=int)
+    return (connected & (k_req_arr > 0)).astype(np.int64)
 
 
 def recommend_price_only(q, p_rated_kw, c_max_kw, state, rng) -> np.ndarray:
-    """Charge in cheapest available slots: highest Q_on first (lowest price)."""
-    q_arr = np.asarray(q, dtype=float)
-    p = np.asarray(p_rated_kw, dtype=float)
+    """Charge only in the cheapest slots that still meet the target (plan
+    baseline ii).
+
+    Each EV looks at the prices from now until it leaves and charges now if
+    the current price is no higher than the k_req-th cheapest of them. If it
+    has fewer slots left than it needs, it charges every slot. Like charge-on-
+    arrival, it ignores the transformer limit.
+    """
     connected = np.asarray(state["connected"], dtype=bool)
     k_req_arr = np.asarray(state["k_req"], dtype=int)
-
-    # Only consider connected EVs that still need charging.
-    eligible = connected & (k_req_arr > 0)
-    eligible_idx = np.flatnonzero(eligible)
-    if eligible_idx.size == 0:
-        return _zero_rec(p.size)
-
-    # Sort by Q_on descending (highest value = cheapest effective cost).
-    order = eligible_idx[np.argsort(-q_arr[eligible_idx, 1])]
-    return _greedy_fill(order, p, c_max_kw)
+    k_left = np.asarray(state["k_left"], dtype=int)
+    price = np.asarray(state["price"], dtype=float)
+    t = int(state["t"])
+    rec = _zero_rec(connected.size)
+    for i in np.flatnonzero(connected & (k_req_arr > 0)):
+        ahead = price[t:t + k_left[i]]
+        if k_req_arr[i] >= ahead.size:
+            rec[i] = 1
+        else:
+            kth_cheapest = np.sort(ahead)[k_req_arr[i] - 1]
+            rec[i] = int(price[t] <= kth_cheapest + EPS)
+    return rec
 
 
 def recommend_urgency(q, p_rated_kw, c_max_kw, state, rng) -> np.ndarray:

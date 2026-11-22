@@ -32,14 +32,14 @@
 \maketitle
 
 \begin{abstract}
-Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. If they all charge when they reach home, the total load can go above the transformer limit. We divide the night into 15-minute slots. In each slot an EV either charges at its rated power or waits. Each EV plans for itself and sends two numbers to a mediator: its value for waiting and its value for charging. The mediator picks a joint recommendation that keeps the load within the limit. An EV that is told to wait and charges anyway pays a penalty for the overload it causes, and when several do this the penalty is divided by the Shapley value. In the first version of this proposal the penalty was outside the game, and the mediator's constraints then had no solution whenever the limit was binding. This version puts the penalty inside the payoff, which removes that problem.
+Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. If they all charge when they reach home, the total load can go above the transformer limit. We divide the night into 15-minute slots in which each EV either charges at its rated power or waits. Each EV plans for itself and tells a mediator what waiting and charging are worth to it. The mediator solves a linear program for a correlated recommendation that never exceeds the limit. An EV that is told to wait and charges anyway pays for the overload it causes, and several such EVs share the penalty by the Shapley value, which never charges any of them less than it would pay alone. In simulation the mediator never overloaded the transformer. It got 88\% of cars to their target with 4 EVs on 20~kW, 58\% with 8 and 26\% with 12, while the policies that reach 95\% overload the transformer in 14 to 20 slots a night.
 \end{abstract}
 
 \keywords{multi-agent systems \and EV charging \and Markov decision process \and correlated equilibrium \and Shapley value}
 
 \section{Introduction}
 
-An EV that reaches home at 6 PM and leaves at 7 AM has thirteen hours to get a few hours of charge. The owner does not care when the charging happens, as long as the car is ready and the bill is low. The transformer does care. Three 7~kW chargers on a 15~kW transformer cannot all run together.
+An EV that reaches home at 6 PM and leaves at 7 AM has thirteen hours to get a few hours of charge. The owner only cares that the car is ready and the bill is low, but three 7~kW chargers on a 15~kW transformer cannot all run together.
 
 The agents are the EVs. Each one knows its own battery level, target, charger rating and departure time, and it decides one thing per slot: charge or wait. The transformer is part of the environment. A central mediator sees only what the EVs report and the transformer limit $\cmax$.
 
@@ -251,7 +251,7 @@ Figure~\ref{fig:load-profile} shows the load over one night for charge-on-arriva
 
 \begin{figure}[!htb]
 \centering
-\repfig{width=0.95\textwidth}{load_profile.pdf}
+\repfig{width=0.72\textwidth}{load_profile.pdf}
 \caption{Total load over one overnight session, $N = 8$, seed 2225. The dotted line is $\cmax = 20$~kW. Charge-on-arrival (solid red) exceeds the limit in the evening. The mediator (dashed blue) stays within it and spreads the load over the night.}
 \label{fig:load-profile}
 \end{figure}
@@ -263,7 +263,7 @@ Figure~\ref{fig:overload-cmax} shows how the mean number of overloaded slots per
 
 \begin{figure}[!htb]
 \centering
-\repfig{width=0.95\textwidth}{overload_vs_cmax.pdf}
+\repfig{width=0.62\textwidth}{overload_vs_cmax.pdf}
 \caption{Mean overloaded slots per night against $\cmax$, $N = 8$, 30 seeds. The mediator and the urgency baseline stay at zero; the three policies that ignore the limit overload more as it tightens.}
 \label{fig:overload-cmax}
 \end{figure}
@@ -302,19 +302,19 @@ We evaluated the mediator across penalty weights $\lambda$ and fleet sizes $N \i
 
 \begin{figure}[!htb]
 \centering
-\repfig{width=0.8\textwidth}{mediator_eps_lambda.pdf}
+\repfig{width=0.72\textwidth}{mediator_eps_lambda.pdf}
 \caption{Incentive gap and equilibrium existence against $\lambda$. Left: mean slack $\varepsilon^\star$. Right: percentage of slots with an exact correlated equilibrium ($\varepsilon^\star = 0$).}
 \label{fig:eps-lambda}
 \end{figure}
 
-Figure~\ref{fig:eps-lambda} shows the effect of the overload penalty weight $\lambda$. At $\lambda = 0$, waiting is unpenalised, so any EV with $g_{i,t} > 0$ prefers to charge; the mean incentive gap $\varepsilon^\star$ is $6.20$~Rs for $N=4$, $3.06$~Rs for $N=8$, and $3.48$~Rs for $N=12$, with zero slots reaching an exact equilibrium. As $\lambda$ increases, $\varepsilon^\star$ drops rapidly toward zero. For $N=8$, $92\%$ of slots attain $\varepsilon^\star = 0$ at $\lambda = 0.5$, and $100\%$ do so for all $\lambda \ge 1.0$~Rs/kW$^2$. For $N=12$, $100\%$ exact equilibrium is reached by $\lambda = 1.5$. For $N=4$, exact equilibria appear in $64\%$ of slots at $\lambda = 0.5$ and reach $96\%$ at $\lambda = 5.5$. The remaining $4\%$ represent tight instances where a single left-out EV causes only a tiny overshoot ($\delta \approx 0.3$~kW), where $\delta^2 = 0.09$ requires $\lambda \ge 5.6 / 0.09 \approx 62$ for full compliance without a linear penalty term.
+Figure~\ref{fig:eps-lambda} shows the effect of $\lambda$ on synthetic slots. At $\lambda = 0$ no slot has an exact equilibrium: the mean gap $\varepsilon^\star$ is 6.20~Rs for $N=4$, 3.06 for $N=8$ and 3.48 for $N=12$. It falls quickly as $\lambda$ grows. For $N=8$ every slot has $\varepsilon^\star = 0$ from $\lambda = 1$, and for $N=12$ from $\lambda = 1.5$. For $N=4$ it reaches 96\% at $\lambda = 5.5$; the rest are slots where the left-out EV overshoots by only about 0.3~kW, so $\lambda$ would have to be near 60.
 
 For the solve time we timed the three-phase linear program for $N$ from 2 to 12 (\texttt{results/mediator\_runtime.csv}). Removing profiles with $L(a) > \cmax$ drops about half of them: for $N=12$, 2069 of the 4096 profiles are safe on average. On our machine the median time per slot was 2.9~ms for $N=2$, 5.3~ms for $N=8$ and 39~ms for $N=12$. Times depend on the machine, but they grow roughly with $2^N$, so each extra EV about doubles the work. A 15-minute slot leaves plenty of room at this size. The code refuses more than 16 EVs, where exact enumeration stops being practical.
 
 \section{Limitations}
 \label{sec:limits}
 
-EVs are assumed to report their Q-values truthfully. Only defectors pay, so an EV that overstated its gain to get an ON recommendation would avoid the penalty; truthful reports rule this out here. The share $\alpha_t$ is a rough forecast: it treats every future slot alike and does not know which other EVs are urgent. The mediator still cannot recommend charging to an EV whose own plan says to wait, because the obedience constraint \eqref{eq:on} respects that. On crowded nights some cars therefore still miss their target (Section~\ref{sec:res-policies}). The Q-values also ignore future penalties. The penalty depends on the recommendation as well as the action, so what the mediator computes is a correlated equilibrium of the game with this penalty rule. If an EV's overload $\delta_j$ is very small, the $\lambda$ needed for obedience is very large: at $\lambda = 5$ an overshoot of 0.3~kW costs only 0.45~Rs. The code can add a linear term, $f(L) = \lambda x^2 + \lambda_1 x$ with $x = \max\{0, L - \cmax\}$, which puts a floor under small overshoots. This $f$ is still convex, so the guarantees in Section~\ref{sec:shapley} still hold. A fixed charge for any overload would not be convex, and those guarantees would fail. All results above use $\lambda_1 = 0$. The model leaves out variable charging power, voltage and three-phase effects, battery ageing and real tariff rules.
+EVs are assumed to report their Q-values truthfully; since only defectors pay, an EV that overstated its gain to get an ON recommendation would avoid the penalty. The share $\alpha_t$ is a rough forecast that treats every future slot alike, and the mediator still cannot recommend charging to an EV whose own plan says to wait, so on crowded nights some cars miss their target. The penalty depends on the recommendation as well as the action, so the mediator computes a correlated equilibrium of the game with this penalty rule. A small overshoot is cheap under a quadratic penalty (0.45~Rs for 0.3~kW at $\lambda = 5$), which is why $\varepsilon^\star > 0$ near departure. The code supports a linear term, $f(L) = \lambda x^2 + \lambda_1 x$, which keeps $f$ convex so Section~\ref{sec:shapley} still holds; a fixed charge per overload would not be convex. All results use $\lambda_1 = 0$. The model leaves out variable charging power, voltage and three-phase effects, battery ageing and real tariff rules.
 
 \section{Contributions}
 

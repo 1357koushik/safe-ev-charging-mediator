@@ -112,13 +112,33 @@ Every table and figure in the report is written by these scripts. The numbers qu
 
 ---
 
-## Screenshots and logs
+## Screenshots
 
-In `docs/screenshots/`:
+All images are in `docs/screenshots/` and are copied from `report/figures/`, which `run_all` writes.
 
-- `load_profile.png`, `overload_vs_cmax.png`, `penalty_rs_per_kw.png`, `defection_rate.png`, `mediator_eps_lambda.png`, `mediator_runtime.png`: the report figures, copied from `report/figures/`
-- `pytest_output.txt`: output of `python -m pytest` for the submitted commit
-- `run_all_output.txt`: output of `python -m experiments.run_all` for the submitted commit
+**Load over one night** (N = 8, C_max = 20 kW): charge-on-arrival goes far above the limit, the mediator stays under it.
+
+![Load profile](docs/screenshots/load_profile.png)
+
+**Overloaded slots against the transformer limit** (N = 8, 30 seeds).
+
+![Overload vs C_max](docs/screenshots/overload_vs_cmax.png)
+
+**Incentive gap and exact equilibria against the penalty weight lambda.**
+
+![eps vs lambda](docs/screenshots/mediator_eps_lambda.png)
+
+**Mediator solve time against the number of EVs.**
+
+![Runtime vs N](docs/screenshots/mediator_runtime.png)
+
+**Penalty per kW of charger rating under the three split rules.**
+
+![Penalty per kW](docs/screenshots/penalty_rs_per_kw.png)
+
+**Overload and penalty as more EVs ignore the recommendation** (synthetic slots).
+
+![Defection rate](docs/screenshots/defection_rate.png)
 
 ---
 

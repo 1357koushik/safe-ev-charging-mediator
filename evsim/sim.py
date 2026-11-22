@@ -1,0 +1,192 @@
+"""Overnight EV charging simulation loop.
+
+Owner: Sura Sravan Kumar.
+
+The public interface is a single function:
+
+    run(scenario, policy, penalty_rule, lam, defect_rate, seed) -> pd.DataFrame
+
+It steps through every slot from 0 to N_SLOTS-1 and returns one row per EV
+per slot with the columns specified in Work_Division_Plan.md section 3.7.
+"""
+
+from __future__ import annotations
+
+import math
+from typing import Literal
+
+import numpy as np
+import pandas as pd
+
+from evsim.common import (
+    DT_H,
+    N_SLOTS,
+    EPS,
+    Scenario,
+)
+from evsim.mdp import solve_q, k_req, step_soc
+from evsim.mediator import recommend as mediator_recommend
+from evsim import penalty as pen_mod
+from evsim.baselines import BASELINE_POLICIES
+
+
+POLICY_NAMES = ["immediate", "price_only", "urgency", "independent_mdp", "ce_mediator"]
+PENALTY_RULE_NAMES = ["shapley", "equal", "proportional"]
+
+# Log columns (Work_Division_Plan.md §3.7)
+_LOG_COLS = [
+    "run_id", "policy", "penalty_rule", "seed", "n_ev", "c_max_kw", "lam",
+    "defect_rate", "slot", "ev_id", "soc_before", "k_left", "q_off", "q_on",
+    "rec", "act", "defected", "load_kw", "overload_kw", "pen_rs",
+    "energy_cost_rs", "eps", "lp_status", "mediator_ms",
+]
+
+
+def run(
+    scenario: Scenario,
+    policy: str,
+    penalty_rule: str,
+    lam: float,
+    defect_rate: float,
+    seed: int,
+) -> pd.DataFrame:
+    """Simulate one overnight charging session.
+
+    Parameters
+    ----------
+    scenario : Scenario
+        Contains EV parameters, initial SoCs, transformer limit and price.
+    policy : str
+        One of ``POLICY_NAMES``.
+    penalty_rule : str
+        One of ``PENALTY_RULE_NAMES``.
+    lam : float
+        Quadratic overload penalty weight (Rs / kW^2).
+    defect_rate : float
+        Probability that a connected EV told OFF with g > 0 charges anyway.
+    seed : int
+        Seed for the run RNG (use BASE_SEED + run_index).
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per EV per slot with columns in ``_LOG_COLS``.
+    """
+    if policy not in POLICY_NAMES:
+        raise ValueError(f"Unknown policy {policy!r}; use one of {POLICY_NAMES}")
+    if penalty_rule not in PENALTY_RULE_NAMES:
+        raise ValueError(f"Unknown penalty rule {penalty_rule!r}; use one of {PENALTY_RULE_NAMES}")
+
+    evs = scenario.evs
+    n = len(evs)
+    p_rated = np.array([ev.p_rated_kw for ev in evs], dtype=float)
+    c_max = scenario.c_max_kw
+    price = scenario.price
+    rng = np.random.default_rng(seed)
+    run_id = seed
+
+    # Mutable SoC state, one entry per EV.
+    soc = scenario.soc_init.copy().astype(float)
+
+    rows: list[dict] = []
+
+    for t in range(N_SLOTS):
+        # 1. Which EVs are connected this slot?
+        connected = np.array(
+            [ev.arrive_slot <= t < ev.depart_slot for ev in evs], dtype=bool
+        )
+
+        # 2. Q-values and urgency metrics.
+        q = np.zeros((n, 2), dtype=float)
+        k_left_arr = np.zeros(n, dtype=int)
+        k_req_arr = np.zeros(n, dtype=int)
+
+        for i, ev in enumerate(evs):
+            if connected[i]:
+                q[i, 0], q[i, 1] = solve_q(ev, soc[i], t, price)
+                k_left_arr[i] = ev.depart_slot - t
+                k_req_arr[i] = k_req(ev, soc[i])
+
+        # 3. Build state dict for baselines.
+        state = {
+            "connected": connected,
+            "k_left": k_left_arr,
+            "k_req": k_req_arr,
+            "soc": soc.copy(),
+        }
+
+        # 4. Get recommendations.
+        eps_val = float("nan")
+        lp_status = ""
+        mediator_ms_val = float("nan")
+
+        if policy == "ce_mediator":
+            result = mediator_recommend(q, p_rated, c_max, lam, rng)
+            rec = result.rec.copy().astype(np.int64)
+            eps_val = result.eps
+            lp_status = result.status
+            mediator_ms_val = result.runtime_ms
+        else:
+            fn = BASELINE_POLICIES[policy]
+            rec = fn(q, p_rated, c_max, state, rng).astype(np.int64)
+
+        # Force rec = 0 for disconnected EVs.
+        rec[~connected] = 0
+
+        # 5. Defection: connected EV told OFF with g > 0 charges with prob defect_rate.
+        act = rec.copy()
+        defected = np.zeros(n, dtype=bool)
+        for i in range(n):
+            if connected[i] and rec[i] == 0:
+                g = q[i, 1] - q[i, 0]
+                if g > EPS and rng.random() < defect_rate:
+                    act[i] = 1
+                    defected[i] = True
+
+        # 6. Validate: no disconnected EV may have rec or act = 1.
+        pen_mod.check_connected(rec, act, connected)
+
+        # 7. Slot-level quantities.
+        load_kw = float(act @ p_rated)
+        overload = pen_mod.overload_kw(act, p_rated, c_max)
+        pen_array = pen_mod.split_penalty(penalty_rule, rec, act, p_rated, c_max, lam)
+
+        # 8. Per-EV energy cost.
+        energy_cost = act * p_rated * DT_H * price[t]   # (N,) in Rs
+
+        # 9. Write log rows.
+        for i, ev in enumerate(evs):
+            rows.append({
+                "run_id":        run_id,
+                "policy":        policy,
+                "penalty_rule":  penalty_rule,
+                "seed":          seed,
+                "n_ev":          n,
+                "c_max_kw":      c_max,
+                "lam":           lam,
+                "defect_rate":   defect_rate,
+                "slot":          t,
+                "ev_id":         ev.ev_id,
+                "soc_before":    soc[i],
+                "k_left":        int(k_left_arr[i]),
+                "q_off":         q[i, 0],
+                "q_on":          q[i, 1],
+                "rec":           int(rec[i]),
+                "act":           int(act[i]),
+                "defected":      bool(defected[i]),
+                "load_kw":       load_kw,
+                "overload_kw":   overload,
+                "pen_rs":        float(pen_array[i]),
+                "energy_cost_rs": float(energy_cost[i]),
+                "eps":           eps_val,
+                "lp_status":     lp_status,
+                "mediator_ms":   mediator_ms_val,
+            })
+
+        # 10. Update SoC for connected EVs.
+        for i, ev in enumerate(evs):
+            if connected[i]:
+                soc[i] = step_soc(ev, soc[i], int(act[i]))
+
+    df = pd.DataFrame(rows, columns=_LOG_COLS)
+    return df

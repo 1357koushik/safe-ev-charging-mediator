@@ -1,39 +1,114 @@
-# Safe Neighbourhood EV Charging
+# Safe Neighbourhood EV Charging: Local Planning, a Correlated Mediator, and Shapley Penalties
 
-Course project for Foundations of Multi-Agent Systems, Group 25.
+**Group 25 — Foundations of AI & Multi-Agent Systems (Semester 5, 2026-27)**
 
-Several EVs share one distribution transformer. In every 15-minute slot each EV either charges at its rated power or waits. Each EV plans for itself with a small finite-horizon MDP and reports its value for waiting and for charging. A mediator solves a linear program and sends each EV a private recommendation that keeps the total load under the transformer limit. An EV that is told to wait and charges anyway pays for the overload it causes. When several do this in the same slot, the penalty is split by the Shapley value.
+Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. This project implements a slot-by-slot mediator that keeps the total load within the transformer's capacity limit while still getting every car charged by morning. Each EV solves its own finite-horizon MDP and reports two Q-values per slot; the mediator finds a correlated-equilibrium recommendation over all 2^N joint charging profiles using a two-phase LP. When some EVs disobey, the resulting overload penalty is split by the Shapley value.
 
-## Status
-
-Planning stage. No code yet. Final submission is 22 November.
-
-## Documents
-
-- [docs/Revised_Ideation_Plan.md](docs/Revised_Ideation_Plan.md): the formulation after the review remarks.
-- [docs/Work_Division_Plan.md](docs/Work_Division_Plan.md): who builds what, shared names and interfaces, schedule, GitHub workflow, submission checklist.
-- [report/main.tex](report/main.tex): the LaTeX report (uses `arxiv.sty`). Compiled copy: [report/Revised_Ideation_Report.pdf](report/Revised_Ideation_Report.pdf).
-
-## Planned layout
-
-    evsim/          source: common.py, mdp.py, scenarios.py, mediator.py, penalty.py, baselines.py, sim.py
-    tests/          pytest tests, one file per module
-    experiments/    one script per experiment, make_figures.py, run_all.py
-    results/        CSV output of the experiments
-    report/         LaTeX report and generated figures
-    docs/           plans and README screenshots
-
-## To be added before submission
-
-- Install steps and the single command that reproduces all results.
-- A table mapping each figure and table in the report to its script and CSV file.
-- Screenshots of the results.
+---
 
 ## Team
 
-| Member | Roll no. | Part |
+| Member | Roll | Module |
 |---|---|---|
-| Busa Bhava Ram | 24110083 | Local EV model and scenarios |
-| Muppala Harshith | 24110213 | Mediator LP |
-| Moram Raghavendra Sri Koushik | 24110210 | Penalty and Shapley split |
-| Sura Sravan Kumar | 24110362 | Simulator, baselines, experiments |
+| Busa Bhava Ram | 24110083 | Local EV model (`evsim/mdp.py`), scenario generator (`evsim/scenarios.py`) |
+| Muppala Harshith | 24110213 | Mediator LP (`evsim/mediator.py`), lambda and runtime experiments |
+| Moram Raghavendra Sri Koushik | 24110210 | Penalty module (`evsim/penalty.py`), Shapley split, penalty-rule experiments |
+| Sura Sravan Kumar | 24110362 | Simulator (`evsim/sim.py`), baselines (`evsim/baselines.py`), experiment scripts, figures, README |
+
+---
+
+## Install
+
+```bash
+git clone https://github.com/1357koushik/safe-ev-charging-mediator
+cd safe-ev-charging-mediator
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Requires Python 3.12+. All dependencies are in `requirements.txt`.
+
+---
+
+## Reproduce all results
+
+```bash
+python -m experiments.run_all
+```
+
+This runs every experiment script in order, writes CSVs to `results/`, and writes all figures and LaTeX table files to `report/figures/`. Typical total run time: **~8–12 minutes** on a laptop (the N=12 mediator calls dominate).
+
+To run individual parts:
+
+```bash
+# Tests (1355 total)
+python -m pytest
+
+# Individual experiments
+python -m experiments.run_policy_comparison     # policy comparison table
+python -m experiments.run_cmax_sweep            # overload vs C_max figure
+python -m experiments.run_penalty_rules         # penalty split comparison
+python -m experiments.run_defection_rate        # defection rate sweep
+python -m experiments.run_mediator_lambda       # eps vs lambda figure
+python -m experiments.run_mediator_runtime      # runtime vs N figure
+
+# Figures only (after all CSVs exist)
+python -m experiments.make_figures              # Sravan's figures
+python -m experiments.figures_penalty           # Koushik's figures
+python -m experiments.figures_mediator          # Harshith's figures
+```
+
+---
+
+## Figure and table map
+
+| Report item | Script | CSV | Output |
+|---|---|---|---|
+| Table 3: policy comparison N=4 | `run_policy_comparison.py` | `results/policy_comparison.csv` | `report/figures/policy_table_N4.tex` |
+| Table 4: policy comparison N=8 | `run_policy_comparison.py` | `results/policy_comparison.csv` | `report/figures/policy_table_N8.tex` |
+| Table 5: policy comparison N=12 | `run_policy_comparison.py` | `results/policy_comparison.csv` | `report/figures/policy_table_N12.tex` |
+| Figure 3: load profile | `run_policy_comparison.py` | `results/policy_comparison.csv` | `report/figures/load_profile.pdf` |
+| Figure 4: overload vs C_max | `run_cmax_sweep.py` | `results/cmax_sweep.csv` | `report/figures/overload_vs_cmax.pdf` |
+| Table 2: penalty rules | `run_penalty_rules.py` | `results/penalty_rules.csv` | `report/figures/penalty_rules_table.tex` |
+| Figure 1: penalty Rs/kW | `run_penalty_rules.py` | `results/penalty_rules.csv` | `report/figures/penalty_rs_per_kw.pdf` |
+| Figure 2: defection rate | `run_defection_rate.py` | `results/defection_rate.csv` | `report/figures/defection_rate.pdf` |
+| Figure 5: eps vs lambda | `run_mediator_lambda.py` | `results/mediator_lambda.csv` | `report/figures/mediator_eps_lambda.pdf` |
+| Figure 6: runtime vs N | `run_mediator_runtime.py` | `results/mediator_runtime.csv` | `report/figures/mediator_runtime.pdf` |
+
+No number in the report is typed by hand. Every table is `\input`-ed from a `.tex` file generated by the scripts above.
+
+---
+
+## Seed registry
+
+| Seed range | Experiment |
+|---|---|
+| BASE\_SEED + 0 .. +5 (2025–2030) | `run_penalty_rules.py` |
+| BASE\_SEED + 100 .. +132 (2125–2157) | `run_defection_rate.py` |
+| BASE\_SEED + 200 .. +229 (2225–2254) | `run_policy_comparison.py` |
+| BASE\_SEED + 230 .. +259 (2255–2284) | `run_cmax_sweep.py` |
+
+`BASE_SEED = 2025` (defined in `evsim/common.py`).
+
+---
+
+## Screenshots
+
+Screenshots of key outputs are in `docs/screenshots/`:
+
+- `pytest_pass.png` — terminal showing 1355 tests passed
+- `run_all_complete.png` — terminal showing all experiments finished
+- `load_profile.png` — load-over-night figure
+- `overload_vs_cmax.png` — overload vs C_max figure
+
+---
+
+## Repository link
+
+<https://github.com/1357koushik/safe-ev-charging-mediator>
+
+Submission commit tag: `v1.0-submission`

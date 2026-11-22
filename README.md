@@ -2,7 +2,7 @@
 
 **Group 25 — Foundations of AI & Multi-Agent Systems (Semester 5, 2026-27)**
 
-Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. This project implements a slot-by-slot mediator that keeps the total load within the transformer's capacity limit while still getting every car charged by morning. Each EV solves its own finite-horizon MDP and reports two Q-values per slot; the mediator finds a correlated-equilibrium recommendation over all 2^N joint charging profiles using a two-phase LP. When some EVs disobey, the resulting overload penalty is split by the Shapley value.
+Several electric vehicles (EVs) in one neighbourhood share a distribution transformer. This project implements a slot-by-slot mediator that keeps the total load within the transformer's capacity limit. Each EV solves its own finite-horizon MDP and reports two Q-values per slot; the mediator finds a correlated-equilibrium recommendation over all 2^N joint charging profiles of the connected EVs using a three-phase LP (minimise the incentive gap, maximise reported value, then use as much capacity as possible at that value). The report also shows where this fails: when the EVs together need more energy than the transformer can give in the cheap overnight hours, many cars miss their target, because each EV's own plan ignores congestion. When some EVs disobey, the resulting overload penalty is split by the Shapley value.
 
 ---
 
@@ -40,7 +40,7 @@ Requires Python 3.12+. All dependencies are in `requirements.txt`.
 python -m experiments.run_all
 ```
 
-This runs every experiment script in order, writes CSVs to `results/`, and writes all figures and LaTeX table files to `report/figures/`. Typical total run time: **~8–12 minutes** on a laptop (the N=12 mediator calls dominate).
+This runs every experiment script in order, writes CSVs to `results/`, and writes all figures and LaTeX table files to `report/figures/`. Typical total run time: **about 13 minutes** on a laptop (the policy comparison and C_max sweep dominate).
 
 To run individual parts:
 
